@@ -1,0 +1,215 @@
+---
+trigger: model_decision
+description: Apply accessibility and inclusive design standards when implementing, reviewing, or testing UI components, forms, navigation, dialogs, interactive controls, dynamic content, responsive layouts, multimedia, and assistive technology support.
+---
+
+# Accessibility and Inclusive Design Standards
+
+This rule establishes engineering standards for designing, implementing, reviewing, and testing accessible user interfaces. It guides the coding agent to build inclusive experiences, maintain keyboard usability, ensure assistive technology compatibility, preserve readability, and deliver verifiable accessibility across web and client applications.
+
+## 1. Accessibility by Design
+
+- **Core Requirement**: Treat accessibility as an integral engineering discipline throughout architecture, implementation, and testing—never as a superficial post-launch patch.
+- **Inclusive Audience**: Design for diverse abilities, including users with visual, auditory, motor, cognitive, speech, or situational impairments.
+- **Reference Standards**: Use the Web Content Accessibility Guidelines (WCAG) as the foundational reference for web interfaces. Target WCAG 2.2 Level AA when project requirements call for it, respecting criterion-specific exceptions.
+- **Platform Conventions**: For native or non-web applications, apply operating system accessibility APIs (e.g., UI Automation, NSAccessibility, Android Accessibility) and WCAG2ICT guidance where applicable.
+- **No Decorative Compromise**: Never sacrifice essential accessibility, contrast, or keyboard usability for aesthetic trends or decorative visual effects.
+- **Disclose Limitations**: Identify and document known accessibility trade-offs or technical limitations rather than concealing or ignoring them.
+
+## 2. Semantic Structure and Content Hierarchy
+
+- **Native Semantics First**: Prefer native HTML elements (`<main>`, `<nav>`, `<header>`, `<article>`, `<section>`, `<h1>`-`<h6>`, `<button>`, `<a>`) over generic `<div>` or `<span>` wrappers.
+- **Logical Heading Hierarchy**: Maintain an uninterrupted heading structure (`h1` through `h6`) that accurately portrays the content outline. Never skip heading levels purely for visual sizing; use CSS classes for typographic styling.
+- **Semantic Element Roles**: Use `<button>` for actions and state triggers; use `<a>` with a valid `href` for navigation. Never attach click handlers to non-interactive containers without full keyboard and role semantics.
+- **Landmark Regions**: Use landmark roles and HTML5 structural elements so screen reader users can navigate directly to primary content, navigation, search, and complementary regions.
+- **Document Titles**: Provide descriptive, unique `<title>` elements that identify the current page and application context.
+
+## 3. Keyboard Accessibility
+
+- **Universal Keyboard Operation**: Ensure every interactive feature can be operated using only a keyboard.
+- **Native Keyboard Parity**: Preserve standard browser keyboard interactions for native form elements, links, and buttons.
+- **Predictable Tab Order**: Maintain a logical tab sequence that follows reading and visual layout order. Never use positive `tabindex` values; manage custom order via DOM positioning or `tabindex="0"` / `tabindex="-1"`.
+- **Prevent Keyboard Traps**: Ensure keyboard focus can enter and exit all interactive widgets, dialogs, flyouts, and menus without trapping the user.
+- **Standard Widget Keys**: Support standard keys for custom controls: Tab/Shift+Tab for navigation, Enter/Space for activation, Escape for dismissal, and Arrow keys for composite items (tabs, menus, listboxes).
+- **Pointer Gestures**: Provide single-pointer or keyboard alternatives for interactions that require dragging, pinching, or complex multi-point gestures.
+
+## 4. Focus Visibility and Management
+
+- **Visible Focus Indicators**: Ensure all focusable elements display an unambiguous, high-contrast focus indicator when navigated via keyboard.
+- **Never Suppress Outlines**: Never set `outline: none` or `outline: 0` without providing an equally or more visible custom focus style.
+- **Unobscured Focus**: Ensure focused elements are not hidden beneath sticky headers, floating action buttons, fixed navigation bars, or modal backdrops.
+- **Focus Management on Navigation**: In Single-Page Applications (SPAs), manage focus appropriately on client-side route transitions (e.g., focusing the primary heading or route container).
+- **Dialog Focus Lifecycle**: Move focus to the primary control or container when opening a dialog; trap focus within active modal dialogs; restore focus to the triggering element upon dismissal.
+- **Stable Focus**: Avoid moving focus unexpectedly during background polling, content updates, or typing.
+
+## 5. Accessible Names, Labels, and Instructions
+
+- **Meaningful Accessible Names**: Ensure every interactive element has a clear, programmatic accessible name calculated via content, `aria-label`, or `aria-labelledby`.
+- **Visible Form Labels**: Explicitly associate `<label>` elements with their form controls using matching `for`/`id` attributes. Never rely solely on `placeholder` text as a label.
+- **Icon-Only Controls**: Provide descriptive accessible names for icon buttons, search toggles, and compact action controls (e.g., `aria-label="Close dialog"`).
+- **Label-In-Name Alignment**: When using `aria-label` on controls with visible text, ensure the accessible name contains the visible label string to support speech-input users.
+- **Input Guidance**: Provide clear instructions for required formats (dates, phone numbers), character limits, and constraints programmatically linked via `aria-describedby`.
+
+## 6. Images, Icons, and Non-Text Content
+
+- **Informative Images**: Provide descriptive alternative text (`alt="description"`) conveying the purpose and essential information of meaningful images.
+- **Decorative Images**: Mark purely decorative illustrations, background textures, and cosmetic graphics with empty alternative text (`alt=""`) or `aria-hidden="true"`.
+- **Avoid Text in Images**: Render real text with CSS styling instead of embedding text in raster images, ensuring scalability, translation, and custom theming.
+- **Complex Visualizations**: Provide textual summaries, structured data tables, or long descriptions for charts, flowcharts, and technical diagrams.
+- **Accessible SVG Icons**: Hide decorative SVGs with `aria-hidden="true"`; give interactive or standalone meaningful SVGs appropriate `<title>` elements or accessible label attributes.
+
+## 7. Color, Contrast, and Visual Presentation
+
+- **Never Color-Alone**: Never convey information, indicate status (success, error, warning), or denote required fields solely through color; pair color with icons, text, or patterns.
+- **Text Contrast Ratios**: For WCAG 2.2 AA conformance, maintain minimum contrast ratios of:
+  - 4.5:1 for normal text (< 18pt regular or < 14pt bold).
+  - 3:1 for large text (>= 18pt regular or >= 14pt bold).
+- **UI Component Contrast**: Maintain at least 3:1 contrast against adjacent backgrounds for interactive boundaries, form borders, active selection states, and focus indicators.
+- **Theme Resilience**: Verify contrast across light, dark, and high-contrast system themes; prevent hardcoded color overrides that break custom user contrast modes.
+- **Avoid Faint UI Elements**: Do not require users to rely on subtle box shadows, low-contrast placeholder text, or barely visible borders to understand interface controls.
+
+## 8. Typography and Readability
+
+- **Legible Hierarchy**: Use clear type scale, sufficient line height (minimum 1.5 for body text), and reasonable line lengths (50–80 characters) to enhance readability.
+- **Zoom and Text Resizing**: Ensure interfaces support text resizing up to 200% without clipping, overlapping, or truncating text in fixed-height containers.
+- **Plain Language**: Write clear, concise UI copy; explain technical acronyms and industry jargon in context.
+- **Consistent Terminology**: Use uniform action verbs and labels across pages (e.g., do not mix "Remove", "Delete", and "Trash" for the identical action).
+- **Avoid Impeding Styling**: Avoid long paragraphs of all-caps text, justified text alignment, or excessive letter-spacing that degrades legibility for dyslexic or low-vision users.
+
+## 9. Responsive Layout and Reflow
+
+- **Fluid Reflow**: Ensure content reflows vertically without requiring two-dimensional scrolling at 400% zoom or on viewports equivalent to 320 CSS pixels wide (WCAG 2.2 AA).
+- **Preserve Functionality Across Breakpoints**: Ensure responsive views do not hide essential actions, controls, or data without accessible mobile equivalents.
+- **Accessible Mobile Navigation**: Ensure responsive drawers, mobile bottom bars, and hamburger menus are fully keyboard-navigable and screen-reader accessible.
+- **Avoid Layout Clashing**: Ensure zoom and responsive adaptations do not cause floating bars to obscure content, buttons to overlap, or menus to become untappable.
+
+## 10. Accessible Forms and Validation
+
+- **Programmatic Associations**: Explicitly associate input controls with visible labels (`<label for="...">`), helper text, and error messages via `aria-describedby`.
+- **Indicate Required Fields**: Mark required inputs programmatically (`required` or `aria-required="true"`) and visibly (e.g., text or asterisk with legend).
+- **Meaningful Error Messages**: Identify errors in plain text; specify what went wrong and provide actionable instructions on how to resolve the issue.
+- **Error Summaries & Focus**: On failed submission, present an accessible error summary at the top of the form or shift focus to the first invalid field.
+- **Input Autocomplete**: Provide appropriate `autocomplete` attributes (e.g., `name`, `email`, `address-line1`) on standard fields to assist cognitive and motor accessibility.
+- **Preserve Input**: Never wipe valid form fields when validation fails; preserve user input across validation roundtrips.
+
+## 11. Buttons, Links, and Interactive Controls
+
+- **Distinguish Links from Buttons**: Use links (`<a>`) for changing URL/navigation; use buttons (`<button>`) for mutating data, submitting forms, or opening dialogs.
+- **Meaningful Link Text**: Avoid ambiguous link labels ("Click here", "Read more", "Learn more") without contextual accessible names (`aria-label="Read more about security rules"`).
+- **Button Types**: Always specify `type="button"` on non-submitting buttons within `<form>` elements to prevent accidental submissions.
+- **Expose Interactive States**: Accurately communicate states using native attributes or ARIA: disabled (`disabled`), selected (`aria-selected`), expanded (`aria-expanded`), checked (`aria-checked`), and pressed (`aria-pressed`).
+- **No Nested Interactive Elements**: Never place a `<button>`, `<a>`, or interactive control inside another interactive element.
+
+## 12. Pointer, Touch, and Target Size
+
+- **Minimum Target Dimensions**: For touch and pointer interfaces, ensure interactive targets meet the WCAG 2.2 AA minimum size of 24 by 24 CSS pixels, or provide sufficient spacing so the target plus perimeter total at least 24px.
+- **Generous Spacing**: Provide adequate padding and margin between adjacent interactive elements to prevent accidental activation.
+- **Pointer Cancellation**: Allow touch and click actions to be aborted or cancelled (e.g., releasing pointer outside the control boundary) rather than firing irreversibly on down-event.
+- **Hover & Focus Independence**: Never make vital information or controls accessible only via mouse hover; ensure equivalent access via focus or click.
+
+## 13. Dialogs, Menus, Tabs, and Overlays
+
+- **Modal Semantics**: Implement modal dialogs with `<dialog>` or `role="dialog"` / `role="alertdialog"`, `aria-modal="true"`, and a programmatically linked accessible label (`aria-labelledby`).
+- **Focus Containment**: Trap Tab navigation within the active modal until closed; prevent background content interaction.
+- **Keyboard Dismissal**: Support the Escape key to close dismissible overlays, dropdown menus, flyouts, and dialogs.
+- **Composite Widget Navigation**: Follow standard WAI-ARIA Authoring Practices (APG) for tabs, menus, and listboxes—use Arrow keys for item traversal and Tab to exit the widget.
+- **Return Focus**: Return focus to the trigger control that opened the overlay when dismissed.
+
+## 14. Dynamic Content, Live Regions, and Status Messages
+
+- **Discoverable Updates**: Announce meaningful asynchronous state changes (e.g., form saved, search completed, item deleted) using ARIA live regions (`role="status"`, `aria-live="polite"`).
+- **Proportional Announcements**: Avoid excessive live region updates that interrupt screen reader announcements; reserve `aria-live="assertive"` / `role="alert"` for critical, time-sensitive warnings.
+- **Loading & Busy States**: Indicate pending operations programmatically using `aria-busy="true"` on the loading container and provide an accessible loading description.
+- **Persistent Error Visibility**: Do not rely exclusively on auto-dismissing toast messages for critical errors; provide persistent inline messages.
+
+## 15. Motion, Animation, and Time Limits
+
+- **Respect Reduced Motion**: Honor the `prefers-reduced-motion: reduce` media query by disabling non-essential transitions, parallax effects, and animated auto-scrolling.
+- **Seizure & Vestibular Safety**: Never use content that flashes more than three times per second (preventing photosensitive seizures).
+- **Pause, Stop, Hide**: Provide accessible controls to pause, stop, or hide any carousel, animated banner, or auto-updating feed that moves continuously for more than 5 seconds.
+- **Adjustable Time Limits**: Avoid arbitrary session timeouts on forms; if timeouts are unavoidable, provide warnings and options to extend the session (minimum 20 seconds notice, extendable up to 10x).
+
+## 16. Tables, Charts, and Complex Data
+
+- **Tabular Semantics**: Use semantic `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, and `<td>` elements for tabular datasets.
+- **Header Associations**: Explicitly associate headers with cells using `scope="col"` and `scope="row"`, or `headers`/`id` for complex multi-level tables.
+- **Table Captions**: Provide descriptive `<caption>` elements or accessible names to summarize table contents.
+- **Alternative Data Views**: Offer accessible data tables or CSV exports as alternatives to complex graphical charts and visualizations.
+- **Non-Color Data Encodings**: Differentiate chart data series using distinct patterns, shapes, line styles, and direct labels in addition to color.
+
+## 17. Multimedia Accessibility
+
+- **Synchronized Captions**: Provide accurate, synchronized captions for all prerecorded and live video content containing speech.
+- **Transcripts & Audio Description**: Provide full text transcripts for audio-only assets (podcasts) and audio descriptions for essential visual actions in video.
+- **Accessible Players**: Ensure media players are completely operable via keyboard (play/pause, scrub, volume, caption toggle) with accessible labels.
+- **Never Autoplay Audio**: Do not autoplay audio that lasts longer than 3 seconds without a clear, immediate mute mechanism.
+
+## 18. ARIA Authoring and Custom Widgets
+
+- **First Rule of ARIA**: If a native HTML element or attribute already provides the necessary semantics and behavior, use it instead of ARIA.
+- **ARIA Does Not Add Behavior**: Remember that adding ARIA roles and attributes does not automatically implement keyboard shortcuts, focus trapping, or event handling; those must be coded in JavaScript.
+- **Accurate & Synchronized States**: Keep ARIA attributes (`aria-expanded`, `aria-selected`, `aria-checked`, `aria-disabled`) strictly in sync with component DOM state.
+- **No Invalid Roles or Redundancy**: Avoid redundant attributes (e.g., `<button role="button">`) and conflicting role assignments (e.g., `<h1 role="button">`).
+
+## 19. Localization, Directionality, and Clarity
+
+- **Document Language**: Declare the primary document language via `<html lang="...">` and indicate language changes on multilingual passages with inline `lang` attributes.
+- **Bidirectional Support**: Support right-to-left (RTL) layouts using CSS logical properties (`margin-inline`, `padding-inline`) and `dir="rtl"` where required.
+- **Flexible Layouts**: Allow containers and buttons to expand gracefully for translated strings that are significantly longer than base language strings.
+- **Cultural Neutrality**: Avoid relying on Western-centric idioms, metaphors, or color associations to communicate essential instructions.
+
+## 20. Design Systems and Reusable Accessibility
+
+- **Bake-In Accessibility**: Implement accessibility in shared design system primitives so all consuming views inherit compliant behavior.
+- **Document Component Accessibility**: Include keyboard interaction guides, required ARIA properties, and contrast requirements in component documentation.
+- **Audit Token Changes**: Validate contrast ratios whenever updating design tokens, palette colors, font scales, or component padding.
+- **Single Source of Truth**: Standardize on approved UI primitives for dialogs, menus, and form controls rather than recreating custom widgets across features.
+
+## 21. Accessibility Testing and Verification
+
+- **Multi-Method Verification**: Combine automated scanners with rigorous manual keyboard testing; automated tools detect only 30–40% of accessibility issues.
+- **Automated Scanning**: Run automated linters and scanners (e.g., axe-core, ESLint jsx-a11y) where supported by the project environment.
+- **Keyboard Walkthroughs**: Verify every primary user workflow using only Tab, Shift+Tab, Enter, Space, Escape, and Arrow keys with no mouse interaction.
+- **Screen Reader Testing**: Spot-check complex custom widgets with native screen readers (NVDA, VoiceOver, JAWS) when accessible in the development environment.
+- **Report Verified Coverage**: Disclose which manual checks, contrast verifications, and keyboard tests were performed, noting any environmental testing limitations.
+
+## 22. Accessibility Defects and Remediation
+
+- **Prioritize Blockers**: Prioritize remediation by user impact: blockers that prevent task completion take precedence over minor cosmetic notices.
+- **Fix Root Semantic Causes**: Address the fundamental HTML structure or keyboard handler rather than attempting to paper over issues with brittle ARIA patches.
+- **Regression Protection**: Add automated unit or integration assertions for fixed accessibility defects (e.g., testing focus restoration, accessible names, role attributes).
+- **Scope Discipline**: Do not execute unrelated visual redesigns while remediating an accessibility defect.
+
+## 23. Documentation and Compliance Claims
+
+- **Document Verified Practices**: Record verified keyboard shortcuts, component accessibility conventions, and known limitations in project documentation.
+- **Honest Compliance Reporting**: Never claim full WCAG 2.2 AA conformance based solely on automated scanner passes; explicitly distinguish automated audits from manual assistive technology evaluations.
+- **Actionable Gap Analysis**: If evaluated against WCAG standards, report exact criteria evaluated, passing areas, known barriers, and remediation plans.
+
+## 24. Accessibility Decision Principles
+
+1. **Inclusion Over Aesthetics**: Visual elegance must never compromise usability, readability, or access for people with disabilities.
+2. **Native First**: Native HTML elements and platform primitives take precedence over custom ARIA-constructed widgets.
+3. **Keyboard Is Fundamental**: If an action cannot be completed with a keyboard alone, it is broken and cannot be shipped.
+4. **Perceivable, Operable, Understandable, Robust**: Ground all interface decisions in the four core principles of universal accessibility.
+5. **No False Conformance**: Never state an interface is "100% accessible" or "fully compliant" without exhaustive automated and manual verification.
+6. **Shared Component Priority**: Fix accessibility defects in foundational design system components first to remediate issues across the entire application.
+
+## 25. Avoid Rule Duplication
+
+This accessibility rule works alongside existing specialized project rules. Consult them directly for related requirements:
+
+- [core-workflow.md](./core-workflow.md): Governs overall task planning, execution, and verification workflows.
+- [change-safety.md](./change-safety.md): Governs preserving existing functionality, managing scope, and preventing regressions.
+- [coding-standards.md](./coding-standards.md): Governs general code style, structure, and quality.
+- [architecture.md](./architecture.md): Governs architectural boundaries and component responsibilities.
+- [security.md](./security.md): Governs application security, input validation, and data protection.
+- [database.md](./database.md): Governs data schemas, migrations, and transactional integrity.
+- [frontend.md](./frontend.md): Governs frontend framework patterns, state management, and component architecture.
+- [backend.md](./backend.md): Governs server-side architecture and API routing.
+- [api-design.md](./api-design.md): Governs API contracts, pagination, and payload structures.
+- [testing.md](./testing.md): Governs automated test strategy, frameworks, and test reporting.
+- [documentation.md](./documentation.md): Governs technical documentation and architecture records.
+- [git-workflow.md](./git-workflow.md): Governs version control, commit conventions, and branch management.
+- [deployment.md](./deployment.md): Governs builds, release pipelines, and operational readiness.
+- [performance-optimization.md](./performance-optimization.md): Governs profiling, latency reduction, and resource efficiency.

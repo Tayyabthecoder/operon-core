@@ -1,0 +1,67 @@
+{
+  "version": "1.4.0",
+  "framework": "AI Agent Engineering Framework",
+  "stopGate": {
+    "frameworkOnlyProfiles": ["framework-validator"],
+    "frameworkPathPrefixes": [".agents/", "docs/"]
+  },
+  "fingerprint": {
+    "additionalExclusions": []
+  },
+  "expectedCounts": {
+    "rules": 15,
+    "skills": 52,
+    "templates": 11,
+    "subagents": 6,
+    "docs": 8,
+    "skillBindings": 26
+  },
+  "subagents": [
+    "accessibility-auditor.md",
+    "architect-planner.md",
+    "code-implementer.md",
+    "diagnostic-debugger.md",
+    "qa-reviewer.md",
+    "security-auditor.md"
+  ],
+  "rules": [
+    "accessibility.md",
+    "api-design.md",
+    "architecture.md",
+    "backend.md",
+    "change-safety.md",
+    "coding-standards.md",
+    "core-workflow.md",
+    "database.md",
+    "deployment.md",
+    "documentation.md",
+    "frontend.md",
+    "git-workflow.md",
+    "performance-optimization.md",
+    "security.md",
+    "testing.md"
+  ],
+  "templates": [
+    "architecture/adr-template.md",
+    "architecture/architecture-spec-template.md",
+    "database/schema-template.md",
+    "database/data-dictionary-template.md",
+    "prd/prd-template.md",
+    "srs/srs-template.md",
+    "project-planning/project-plan-template.md",
+    "requirements-analysis/requirements-spec-template.md",
+    "api/api-spec-template.md",
+    "testing/test-plan-template.md",
+    "deployment/deployment-runbook-template.md"
+  ],
+  "docs": [
+    "docs/README.md",
+    "docs/product/README.md",
+    "docs/requirements/README.md",
+    "docs/architecture/README.md",
+    "docs/database/README.md",
+    "docs/api/README.md",
+    "docs/testing/README.md",
+    "docs/deployment/README.md"
+  ]
+}

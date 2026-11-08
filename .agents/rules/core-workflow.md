@@ -1,0 +1,88 @@
+---
+trigger: always_on
+description: Fundamental workflow for understanding, planning, implementing, and verifying software changes safely.
+---
+
+# Core Development Workflow
+
+This rule defines the core end-to-end workflow for AI coding agents operating within this repository. Follow these operational principles to deliver safe, effective, and maintainable software changes.
+
+## 1. Understand the Request
+
+- **Clarify Goals & Scope**: Identify the primary objective, expected outcome, and explicit acceptance criteria before acting.
+- **Categorize the Task**: Distinguish between greenfield initialization, feature development, bug fixing, refactoring, maintenance, and documentation. Tailor precision and conservatism accordingly.
+- **Minimize Clarifying Interruptions**: Ask clarifying questions only when critical requirements are missing or ambiguous and cannot reasonably be deduced from existing code, tests, or context. Avoid asking trivial questions.
+
+## 2. Inspect the Project
+
+- **Inspect First**: Read applicable `AGENTS.md` files, relevant directory guidelines, and applicable domain rules in `.agents/rules/`.
+- **Examine Context**: Inspect existing code, dependencies, architecture, schemas, tests, and configuration before designing or modifying code.
+- **Maximize Reuse**: Identify existing helper functions, components, design patterns, and services. Build upon established abstractions rather than introducing duplicate implementations.
+- **Verify Assumptions**: Never assume directory structures, library versions, API schemas, or environment configurations without direct inspection.
+
+## 3. Plan Proportionally
+
+- **Match Plan to Complexity**:
+  - *Complex or Multi-File Tasks*: Create a concise, structured plan detailing affected files, dependencies, implementation sequence, potential risks, and verification steps.
+  - *Straightforward Tasks*: Proceed directly with implementation without generating redundant planning documents.
+- **Pre-Approval Requirements**: Seek explicit user consent before performing irreversible operations, destructive file/database operations, or substantial architectural shifts.
+
+## 4. Respect Existing Architecture
+
+- **Align with Stack & Conventions**: Adhere to established language paradigms, project frameworks, folder hierarchies, and naming standards.
+- **Avoid Over-Engineering**: Do not introduce speculative abstractions, premature generalizations, or unneeded third-party dependencies (YAGNI).
+- **Architectural Discipline**: Do not alter foundational patterns or project layout without explicit justification and alignment.
+
+## 5. Implement Incrementally
+
+- **Focused Modifications**: Keep edits modular, cohesive, and limited strictly to the scope of the user's request.
+- **Scope Discipline**: Resist unprompted refactoring, cleanup of unrelated files, or stylistic changes to code outside the task scope.
+- **Domain Standard Compliance**: Adhere to specialized project rules for security, database migrations, frontend/backend separation, and test coverage where applicable.
+
+## 6. Protect Existing Work
+
+- **Preserve Uncommitted Changes**: Never discard, overwrite, reset, or stash user work without explicit instruction.
+- **Safeguard Data**: Review the blast radius of database migrations, destructive file system actions, or script executions prior to execution.
+- **Credential Protection**: Never hardcode, commit, or log API keys, secrets, access tokens, or private credentials.
+
+## 7. Verify Changes
+
+- **Active Verification**: Execute available automated tests, type checks, linters, or build commands relevant to the modified code.
+- **Rigorous Integrity**: Never declare a test or build successful unless the command was executed, produced a successful exit code, and was verified in actual command output.
+- **Regression Detection**: Verify that dependent modules and adjacent features remain functional.
+- **Transparency on Limitations**: Disclose any verification checks that could not be executed due to missing tools, network isolation, or environment constraints.
+
+## 8. Handle Errors Systematically
+
+- **Root Cause Investigation**: Diagnose failures using real compiler messages, stack traces, and logs rather than superficial guessing.
+- **Avoid Repetitive Fixes**: If an attempted fix fails, step back and analyze underlying assumptions rather than repeatedly applying variants of the same broken solution.
+- **Re-evaluate Approach**: If diagnostic evidence invalidates the initial plan, adjust the strategy proportionally.
+
+## 9. Maintain Documentation
+
+- **Synchronize Docs with Code**: Update relevant architectural documents, API contracts, schema notes, and setup guides when functionality or interfaces change materially.
+- **Separation of Concerns**: Keep reusable agent instructions separate from project-specific documentation (`docs/`).
+- **Lean Documentation**: Avoid redundant documentation files, empty placeholder drafts, or duplicate notes.
+
+## 10. Final Reporting
+
+Upon completing the task, deliver a concise summary including:
+- **Summary of Changes**: High-level explanation of what was implemented or resolved.
+- **Modified & Created Files**: Exact paths of files created, modified, or removed.
+- **Verification Performed**: Specific commands executed, tests run, and pass/fail results.
+- **Limitations & Next Steps**: Any deferred items, edge cases, or manual steps required by the user.
+
+## 11. Instruction Precedence & Conflicts
+
+- **Safety & Platform First**: Platform safety limits, sandboxing boundaries, and credential protocols always take precedence.
+- **User Intent**: Explicit user instructions take priority over default rules, provided they do not breach platform safety.
+- **Specialized Rules**: Specialized rules (e.g., security, database, backend) operate as domain-specific extensions to this core workflow.
+- **No Unauthorized Bypasses**: Never bypass confirmation gates, sandbox restrictions, or approval requirements without user direction.
+
+## 12. Primary Agent Broker Protocol & Subagent Operational Boundaries
+
+- **Primary Agent Broker Pattern**: To enforce strict least privilege, subagents operate with bounded capabilities. Five of six framework subagents (`architect-planner`, `diagnostic-debugger`, `qa-reviewer`, `security-auditor`, `accessibility-auditor`) possess strictly read-only tools (`[read_file, send_message, manage_task]`). Only `code-implementer` is authorized to mutate source files and execute approved commands.
+- **Verification & Telemetry Brokering**: The Primary Agent executes all automated test runners, linters, compiler checks, and external MCP queries. The Primary Agent sanitizes command output and brokers execution telemetry to `qa-reviewer` and `diagnostic-debugger` via structured messages.
+- **Subagent MCP & Customization Isolation**: All framework subagents declare `subagent: true`, `inheritMcp: false` (to isolate ambient MCP tool catalogs), and `inheritCustomizations: true` (to mount project engineering rules and skills).
+- **Mandatory Credential Redaction**: Agents and subagents must never echo raw secrets, private keys, database passwords, or environment tokens into messages, terminal logs, or artifacts. All discovered or audited secrets must be redacted as `[REDACTED_SECRET: TYPE]`.
+- **Synchronous Completion Verification**: A verification command is never declared successful while pending, backgrounded, or timed out. Verification evidence requires synchronous command termination, exit code 0, and a clean, non-dirty workspace fingerprint.

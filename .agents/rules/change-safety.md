@@ -1,0 +1,85 @@
+---
+trigger: always_on
+description: Protect existing project work, minimize unintended changes, and handle destructive or risky operations safely.
+---
+
+# Change Safety and Risk Prevention
+
+This rule establishes strict safety protocols for modifying codebases. It is designed to prevent unnecessary changes, protect existing user and project work, limit modification blast radiuses, and safely handle risky or irreversible operations.
+
+## 1. Inspect Before Modifying
+
+- **Understand Context First**: Read relevant files completely and discern their architectural purpose and contracts before proposing or executing edits.
+- **Trace Callers & Dependencies**: Trace imports, usages, call sites, and consumers before altering function signatures, data contracts, or component interfaces.
+- **Audit Existing Implementations**: Check for existing helper methods, models, and shared utilities before writing new logic.
+- **Establish Baseline**: Verify how existing behavior currently functions. Never assume code is obsolete, redundant, or dead simply because its purpose is not immediately obvious.
+
+## 2. Minimize Change Scope
+
+- **Laser-Focused Edits**: Confine modifications strictly to the minimal set of files necessary to fulfill the user's explicit request.
+- **Targeted Diffing**: Favor small, surgical diffs over broad refactors or total file rewrites.
+- **Zero Unrequested Cleanup**: Do not reformat files, adjust indentation, rename variables, or modernize idiomatic patterns in code outside the immediate task scope.
+- **No Neighboring Fixes**: Resist editing neighboring functions or adjacent modules simply because they could be written better. Keep out-of-scope improvements out of the diff.
+- **Reuse Over Duplication**: Extend and reuse established patterns and services rather than introducing parallel, competing implementations.
+
+## 3. Preserve Existing Functionality
+
+- **Presume Intentionality**: Treat existing behaviors and implementations as intentional design decisions unless clear contradictory evidence exists.
+- **Honor Public Contracts**: Preserve public APIs, exported interfaces, method behaviors, data schemas, and backwards compatibility unless explicitly tasked with a breaking change.
+- **Anticipate Regressions**: Assess the downstream ripple effects before touching shared libraries, base classes, or core middleware.
+- **Cascade Deliberate Updates**: When an authorized change inherently requires adjusting dependent components, update them synchronously to prevent broken references.
+- **No Simplification-Driven Removals**: Never eliminate existing features, error checks, or edge-case handlers simply to make a new implementation easier to write.
+
+## 4. Protect User Changes
+
+- **Inspect Git State**: When Git is active, check status and working tree diffs before modifying files to understand existing uncommitted work.
+- **Preserve Uncommitted Work**: Respect and preserve uncommitted, unstaged, staged, and untracked changes made by the user.
+- **No Destructive Git Commands**: Never execute `git reset --hard`, `git checkout .`, `git clean -fd`, `git restore .`, branch switches with uncommitted work, or any command that risks discarding uncommitted progress without explicit authorization.
+- **Avoid False Authorship Assumptions**: Never assume that modified files in the working directory were authored by the AI agent.
+- **Review Scope in Final Diff**: Review the complete diff before concluding to guarantee that no user modifications were inadvertently clobbered.
+
+## 5. Handle File Operations Safely
+
+- **Intentional File Lifecycle**: Do not delete, move, rename, or overwrite files unless explicitly requested or intrinsically required for the task.
+- **Inspect Before Overwrite**: Before overwriting or replacing a file, inspect its full content to ensure no critical configuration or functionality is lost.
+- **Directory Refactoring Pre-checks**: Before reorganizing folders or moving assets, identify all import paths, configuration references, and build assets that rely on those paths.
+- **Prevent Redundant Files**: Verify whether an appropriate file already exists before creating a new one (e.g., config files, utility modules, documentation).
+- **Surgical Config Edits**: When editing configuration files (e.g., `.json`, `.yaml`, `.env`, `.toml`), preserve existing properties, comments, and structure.
+
+## 6. Control Dependency Changes
+
+- **Leverage Existing Tools**: Exhaust existing project dependencies and language standard libraries before proposing external packages.
+- **No Unwarranted Dependencies**: Do not install, update, downgrade, or remove libraries or tools without clear necessity and user alignment.
+- **Dependency Due Diligence**: Before adding a dependency, evaluate its package size, maintenance status, security footprint, and compatibility with the current runtime.
+- **Obtain Approval for Package Changes**: Prompt for approval before introducing significant dependencies, new runtimes, or major version bumps.
+
+## 7. Handle Destructive and Irreversible Operations
+
+- **Identify Risky Operations**: Proactively flag operations that involve permanent data loss, drop schemas, truncate tables, delete storage objects, overwrite production configs, or terminate services.
+- **Explicit Approval Gate**: Clearly explain the blast radius and obtain explicit user consent before executing any destructive or irreversible operation.
+- **No Destructive Shortcuts for Tests**: Never drop databases, execute destructive migrations, wipe caches, or purge tables simply to force a failing test to pass.
+- **Safe Alternatives**: Prefer non-destructive alternatives: soft deletes, reversible migrations, atomic swaps, and temporary test fixtures.
+- **Redact Sensitive Data**: Never display, log, or commit private keys, credentials, database passwords, or auth tokens.
+
+## 8. Manage Scope Changes
+
+- **Isolate Serendipitous Defects**: If a bug or vulnerability unrelated to the current task is discovered, document it clearly rather than quietly expanding the diff.
+- **Address Architectural Blockers**: If a requested feature cannot be implemented safely without violating core architecture, explain the obstacle to the user and suggest a minimal, safe alternative.
+- **Assess Unexpected Requirements**: If implementing the request uncovers an unavoidable secondary change, evaluate its safety and communicate it before proceeding.
+
+## 9. Verify Final Changes
+
+- **Final Diff Review**: Inspect the final git diff or modified file set to confirm only intentional, requested changes are present.
+- **Integrity Checklist**:
+  - Verify that unrelated files and user changes remain intact.
+  - Verify that no accidental file deletions, broken imports, or duplicate definitions were introduced.
+  - Verify that configuration settings and environment parameters were preserved.
+- **Targeted Verification**: Run relevant tests, builds, or linting commands to confirm no regressions.
+- **Transparent Reporting**: Disclose any unverified areas, residual risks, or recommended follow-up checks.
+
+## 10. Conflict and Approval Handling
+
+- **Platform Safety Precedence**: System safety rules, credential guards, and sandbox boundaries supersede all other instructions.
+- **Ordinary Edits vs. Consequential Operations**: Treat non-destructive, reversible code modifications as standard autonomous operations; treat permanent file deletion, data wiping, and external dependency installation as operations requiring verification.
+- **No Implied Blanket Consent**: A user prompt to "fix the bug" or "build the feature" is never consent to discard user work, drop databases, or reset branches.
+- **Stop on Missing Approval**: When an operation warrants confirmation and explicit permission has not been granted, halt execution and ask the user before proceeding.

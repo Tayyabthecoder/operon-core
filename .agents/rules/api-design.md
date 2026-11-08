@@ -1,0 +1,166 @@
+---
+trigger: model_decision
+description: Apply API design standards when creating, modifying, documenting, testing, or reviewing API endpoints, contracts, request and response schemas, versioning, pagination, error handling, and external integrations.
+---
+
+# API Design and Integration Standards
+
+This rule defines engineering standards for designing, implementing, documenting, versioning, securing, and testing application programming interfaces (APIs) and integration boundaries. Apply these principles to ensure consistent, predictable, secure, and maintainable contracts across REST, GraphQL, RPC, and event-driven architectures.
+
+## 1. Understand Existing API Conventions
+
+- **Inspect Established Contracts**: Review existing endpoint definitions, schemas, routing patterns, serialization formats, and documentation before introducing or modifying interfaces.
+- **Identify the API Paradigm**: Determine the project's actual communication style (e.g., REST, GraphQL, gRPC, tRPC, Webhooks) and adhere to its specific conventions. Never force REST patterns onto projects using other API styles.
+- **Maximize Endpoint Reuse**: Extend existing endpoints and query capabilities rather than creating duplicate routes or competing contracts for equivalent functionality.
+- **Consistent Naming & Formatting**: Follow the established casing conventions (`camelCase`, `snake_case`, or `kebab-case`) and payload envelope structures already in place.
+
+## 2. Endpoint and Resource Modeling
+
+- **Resource-Oriented URIs**: For REST APIs, design endpoints around clear nouns representing domain resources (e.g., `/api/v1/books`, `/api/v1/orders`), rather than action verbs.
+- **Standard HTTP Semantics Over Action Paths**: Express operations using standard HTTP methods rather than embedding verbs in URI paths (e.g., prefer `DELETE /api/v1/books/{id}` over `/api/v1/deleteBook`).
+- **Shallow Resource Nesting**: Limit URI nesting to two levels where a direct parent-child relationship exists (e.g., `/api/v1/books/{id}/reviews`). Avoid deeply nested paths (e.g., `/authors/{id}/books/{id}/reviews/{id}/comments`); use top-level collections with query filters instead.
+- **Consistent Path Identifiers**: Use uniform path parameter identifiers across resources (e.g., `{id}` or `{book_id}`).
+- **Abstract Internal Storage**: Never leak internal database table names, storage paths, or server file system layouts directly into public URI designs.
+
+## 3. HTTP Methods and Status Codes
+
+- **Accurate Method Semantics**:
+  - `GET`: Safe, idempotent retrieval of resource representations without state mutations.
+  - `POST`: Creation of subordinate resources or execution of non-idempotent operations.
+  - `PUT`: Complete idempotent replacement of an existing resource at a specific URI.
+  - `PATCH`: Partial, targeted update of specific fields of an existing resource.
+  - `DELETE`: Idempotent removal of a specified resource.
+- **Meaningful HTTP Status Codes**:
+  - `200 OK`: Successful retrieval or execution with a non-empty response body.
+  - `201 Created`: Resource successfully created (include `Location` header where appropriate).
+  - `204 No Content`: Successful operation with an intentionally empty response body.
+  - `400 Bad Request`: Malformed syntax, unparseable payload, or structural validation failure.
+  - `401 Unauthorized`: Missing, invalid, or expired authentication credentials.
+  - `403 Forbidden`: Authenticated user lacks permission to access the resource or operation.
+  - `404 Not Found`: Requested resource or endpoint does not exist.
+  - `409 Conflict`: Request conflicts with the current resource state (e.g., duplicate unique key, concurrency version mismatch).
+  - `422 Unprocessable Entity`: Syntactically valid payload fails semantic domain business rules.
+  - `429 Too Many Requests`: Rate limit exceeded (include `Retry-After` header).
+  - `500 Internal Server Error`: Unhandled server-side exception (never expose internal diagnostics).
+- **No Synthetic Success**: Never return `200 OK` when an operation failed, partially failed, or resulted in an error.
+
+## 4. Request and Response Contracts
+
+- **Explicit Schema Definitions**: Define clear, typed schemas for all request payloads, query parameters, and response bodies using standard schema tooling (JSON Schema, TypeScript interfaces, Pydantic DTOs).
+- **Consistent Attribute Conventions**: Maintain uniform casing, date formats (ISO 8601 strings, e.g., `2026-10-24T08:32:31Z`), and deliberate nullability rules across all endpoints.
+- **Explicit Requirement Rules**: Clearly distinguish mandatory fields from optional fields in request schemas.
+- **Data Minimization & DTOs**: Serialize purpose-built Data Transfer Objects (DTOs) with allowlisted fields. Never dump raw database models or internal entities containing sensitive flags, internal IDs, or credentials.
+- **Predictable Empty States**: Return empty arrays (`[]`) for empty collections rather than `null`; return explicit `null` only when an optional single object does not exist.
+
+## 5. API Versioning and Backward Compatibility
+
+- **Adhere to Project Strategy**: Follow the project's established versioning mechanism (e.g., URI prefix `/api/v1/`, custom request headers, or media-type negotiation).
+- **Avoid Premature Versioning**: Do not introduce complex multi-version infrastructure without a verified requirement.
+- **Preserve Backward Compatibility**: Avoid breaking changes to active public contracts:
+  - Non-breaking: Adding optional request parameters, adding response attributes, or loosening constraints.
+  - Breaking: Removing fields, renaming fields, altering types, or changing status codes.
+- **Deprecation Governance**: When breaking changes are unavoidable, provide a transition period, document the deprecation in headers (`Deprecation: true`), and provide clear migration guidance.
+
+## 6. Request Validation & Standardized Error Responses
+
+- **Comprehensive Ingress Validation**: Validate content-types (`Content-Type: application/json`), payload structures, data types, string lengths, and numeric bounds at the API boundary.
+- **Consistent Error Structure**: Return a standardized error format across all endpoints, matching the project's existing convention or the RFC 9457 Problem Details standard:
+  ```json
+  {
+    "type": "https://api.example.com/errors/validation-error",
+    "title": "Validation Failed",
+    "status": 400,
+    "detail": "The request payload failed validation constraints.",
+    "instance": "/api/v1/books",
+    "errors": [
+      { "field": "isbn", "message": "ISBN must be a valid 13-digit string." }
+    ]
+  }
+  ```
+- **Mask Internal Details**: Never leak stack traces, database queries, internal IP addresses, or file system paths in error responses.
+
+## 7. Pagination, Filtering, Sorting, and Search
+
+- **Standardized Collection Pagination**: Implement cursor-based pagination (recommended for large, rapidly changing datasets) or bounded limit/offset pagination across all collection endpoints.
+- **Pagination Metadata**: Include clear pagination metadata in response payloads (e.g., `next_cursor`, `has_more`, `total_count`, `limit`, `page`).
+- **Enforce Page Size Caps**: Enforce strict upper bounds on page size (e.g., maximum limit of 100) to prevent unbounded memory allocation and denial of service.
+- **Safe Filtering & Sorting**: Allowlist permitted filter criteria and sort fields on the server; never interpolate untrusted query strings directly into database sorting or query clauses.
+- **Deterministic Sort Orders**: Guarantee stable ordering by including an immutable tie-breaker column (e.g., `id`) in sort queries.
+
+## 8. Authentication and Authorization
+
+- **Explicit Access Boundaries**: Clearly demarcate public endpoints from protected endpoints in routing definitions.
+- **Server-Side Enforcement**: Validate authentication tokens and verify fine-grained authorization (tenant isolation, resource ownership, role permissions) on the server for every protected request.
+- **No Leakage via Errors**: Avoid leaking the existence of protected resources to unauthenticated or unauthorized callers (e.g., returning 404 instead of 403 where resource discovery presents a risk).
+- **Cross-Reference Security Rules**: Refer to `security.md` and `backend.md` for comprehensive security protocols.
+
+## 9. Idempotency and Safe Retries
+
+- **Idempotent Operations**: Ensure `GET`, `PUT`, and `DELETE` requests are inherently idempotent and safe to retry without compounding side effects.
+- **Idempotency Keys for Mutations**: Support `Idempotency-Key` headers for critical non-idempotent `POST` operations (e.g., payment transactions, order submissions, reservation bookings).
+- **Idempotency Key Handling**: Cache response payloads associated with idempotency keys; return cached results for matching keys, and reject mismatched payloads using `422 Unprocessable Entity` or `409 Conflict`.
+- **Timeout Awareness**: Never assume a client network timeout means the server did not process the request; encourage consumers to use retry logic with idempotency keys.
+
+## 10. Data Integrity and Concurrency Control
+
+- **Prevent Lost Updates**: Support optimistic concurrency control via conditional HTTP headers (`If-Match` with `ETag`, or `If-Unmodified-Since`) or explicit entity `version` attributes.
+- **Conflict Handling**: Return `409 Conflict` or `412 Precondition Failed` when concurrent modifications conflict, providing the current state or version to assist client reconciliation.
+- **Cross-Reference Database Rules**: Refer to `database.md` for transactional guarantees and backend concurrency controls.
+
+## 11. Rate Limiting and Resource Protection
+
+- **Protect Sensitive Endpoints**: Apply rate limits to public APIs, authentication routes, password reset flows, expensive search endpoints, and bulk processing triggers.
+- **Informative Rate Limit Headers**: When rate limits are triggered, return `429 Too Many Requests` with standard rate limit headers (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`, `Retry-After`).
+- **Request Size Caps**: Enforce maximum `Content-Length` limits on all incoming request bodies to prevent resource exhaustion.
+
+## 12. Caching and Conditional Requests
+
+- **Explicit Cache Directives**: Define explicit `Cache-Control` headers for all responses:
+  - Sensitive or authenticated data: `Cache-Control: no-store`.
+  - User-specific private data: `Cache-Control: private, max-age=...`.
+  - Static or public data: `Cache-Control: public, max-age=..., s-maxage=...`.
+- **Validation Caching**: Provide strong `ETag` or `Last-Modified` headers for cacheable resources to enable lightweight `304 Not Modified` conditional responses.
+- **Prevent Cross-Tenant Pollution**: Ensure caching keys strictly incorporate tenant, user, or authorization scopes to prevent data leakage between tenants.
+
+## 13. API Documentation and OpenAPI Schemas
+
+- **Maintain Authoritative Contracts**: Maintain accurate OpenAPI (Swagger) specifications, GraphQL schema definitions, or RPC protocol buffers matching the actual implementation.
+- **Comprehensive Documentation**: Document route summaries, parameter descriptions, request payloads, response bodies, error codes, and authentication requirements.
+- **Keep Specs Synchronized**: Update API specifications immediately whenever endpoint signatures, headers, or schemas change.
+- **No Fictional Contracts**: Never document hypothetical endpoints or phantom parameters that are not implemented in code.
+
+## 14. External API Integrations
+
+- **Encapsulate Third-Party APIs**: Isolate external service calls behind dedicated integration client adapters; never scatter third-party SDK calls directly across domain logic.
+- **Strict Outbound Timeouts**: Configure explicit connect and read timeouts on every outbound HTTP client request.
+- **Bounded Exponential Backoff**: Implement retries with exponential backoff and jitter only for transient network errors and verified idempotent operations.
+- **Decouple Domain from External DTOs**: Map third-party API payloads into internal domain models at the integration boundary to insulate the application from external contract shifts.
+
+## 15. Webhooks and Event-Driven APIs
+
+- **Cryptographic Signatures**: Sign outgoing webhooks with cryptographic HMAC signatures (e.g., `X-Signature-256`) and include timestamp headers (`X-Timestamp`) to prevent tampering and replay attacks.
+- **Validate Inbound Webhooks**: Verify digital signatures, secrets, and timestamps on incoming webhooks before processing payloads.
+- **Idempotent Ingestion**: Ensure incoming webhook handlers are idempotent to safely handle duplicate event deliveries.
+- **Asynchronous Execution**: Acknowledge webhooks immediately with `200 OK` or `202 Accepted` and offload heavy processing to background worker queues.
+
+## 16. API Security and Information Leakage Prevention
+
+- **Enforce TLS**: Ensure all API communication occurs exclusively over HTTPS/TLS 1.2+.
+- **Strict CORS Policies**: Configure Cross-Origin Resource Sharing (CORS) with explicitly allowlisted origins, methods, and headers; avoid `Access-Control-Allow-Origin: *` with credentials.
+- **Zero Secrets in APIs**: Never return private keys, database passwords, or unredacted user credentials in API responses.
+- **Cross-Reference Security Rules**: Refer to `security.md` for comprehensive application security standards.
+
+## 17. API Testing and Verification
+
+- **Contract & Schema Testing**: Validate that live API responses conform strictly to documented OpenAPI schemas or DTO contracts.
+- **Comprehensive Test Cases**: Test valid requests, boundary validation failures, missing authentication, unauthorized roles, missing resources, and rate limit thresholds.
+- **Verify Backward Compatibility**: Execute integration tests against modified endpoints to verify that existing consumers are not broken.
+- **Transparent Reporting**: Report all verified endpoints, test execution results, and any unverified integration workflows accurately.
+
+## 18. API Design Decision Principles
+
+When designing or modifying APIs:
+1. **Predictability & Consistency First**: Uniform naming, status codes, and schema conventions across endpoints take precedence over ad-hoc endpoint designs.
+2. **Contract Stability**: Treat published APIs as binding contracts; protect existing clients from unexpected breaking changes.
+3. **Simplicity Over Abstraction**: Choose clear, explicit resource paths and payload structures over overly complex or premature versioning frameworks.
+4. **Defensive Integration**: Always design for failure, enforce timeouts, handle rate limits, and sanitize inputs across both ingress and egress API boundaries.

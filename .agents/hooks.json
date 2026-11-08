@@ -1,0 +1,53 @@
+{
+  "phase6b-safety-lifecycle": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node scripts/hooks/session-start.mjs",
+        "timeout": 30
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/pre-tool-safety.mjs",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/pre-file-safety.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/post-tool-safety.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node scripts/hooks/stop-gate.mjs",
+        "timeout": 30
+      }
+    ]
+  }
+}
