@@ -141,3 +141,14 @@ When evaluating security implementations:
 2. **Standardized Over Improvised**: Always favor established platform tools, trusted libraries, and industry standards over homegrown security code.
 3. **Transparent Limitations**: If a requested feature cannot be secured safely within the existing architecture, stop and explain the security risk and propose a hardened alternative.
 4. **Authorization Required**: Obtain explicit user approval before modifying access control policies, altering production secrets, or introducing breaking security changes.
+
+## 19. Security Issue Response Protocol
+
+When a vulnerability or exposed secret is discovered during any task:
+1. **Stop**: Pause the current change; do not build further on vulnerable code.
+2. **Report**: Tell the user what was found, where, and its severity, redacting any secret values.
+3. **Fix Critical First**: Resolve critical issues before resuming other work, using the `security-review` skill or `security-auditor` subagent for analysis.
+4. **Rotate Exposed Secrets**: Recommend revoking and rotating any credential that may have been exposed (Section 10); removing it from code is not enough.
+5. **Search for Siblings**: Search the codebase for the same pattern elsewhere and fix or report every instance.
+
+*Adapted from ECC `common/security` (MIT); see THIRD_PARTY_NOTICES.md.*

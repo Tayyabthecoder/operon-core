@@ -1,0 +1,43 @@
+---
+trigger: glob
+globs: "**/*.cpp,**/*.hpp,**/*.cc,**/*.hh,**/*.cxx,**/*.h,**/CMakeLists.txt"
+description: "C++ Hooks (applies to **/*.cpp, **/*.hpp, **/*.cc, **/*.hh, **/*.cxx, **/*.h, **/CMakeLists.txt)"
+paths:
+  - "**/*.cpp"
+  - "**/*.hpp"
+  - "**/*.cc"
+  - "**/*.hh"
+  - "**/*.cxx"
+  - "**/*.h"
+  - "**/CMakeLists.txt"
+source: ecc-universal@2.2.3
+---
+# C++ Hooks
+
+> This file extends the host hook configuration (`.agents/hooks.json`, or `.claude/settings.json` under Claude Code) with C++ specific content.
+
+## Build Hooks
+
+Run these checks before committing C++ changes:
+
+```bash
+# Format check
+clang-format --dry-run --Werror src/*.cpp src/*.hpp
+
+# Static analysis
+clang-tidy src/*.cpp -- -std=c++17
+
+# Build
+cmake --build build
+
+# Tests
+ctest --test-dir build --output-on-failure
+```
+
+## Recommended CI Pipeline
+
+1. **clang-format** — formatting check
+2. **clang-tidy** — static analysis
+3. **cppcheck** — additional analysis
+4. **cmake build** — compilation
+5. **ctest** — test execution with sanitizers

@@ -294,6 +294,15 @@ The specific technical choice, pattern, or framework selected, articulated in ac
 How the team will verify adherence to this architectural decision in code reviews or automated tests.
 ```
 
+### ADR Practice
+- **Index**: Keep `docs/architecture/architecture-decisions/README.md` as a table of every ADR (number, title, status, date) and update it with each new or changed ADR.
+- **Lifecycle**: `Proposed` → `Accepted` → `Deprecated` or `Superseded by ADR-NNNN`. A superseded ADR always links its replacement; never delete historical ADRs.
+- **When to Record**: Technology choices, architecture patterns, API design, data modeling, infrastructure, security strategy, testing strategy, and process decisions (branching, review, release cadence). Skip trivial decisions such as naming or formatting.
+- **Detection Signals**: Explicit phrasing ("let's go with X", "record this as an ADR") or an implicit conclusion after comparing alternatives. For implicit signals, suggest an ADR; never create one without the user's confirmation.
+- **Writing Quality**: Be specific ("Use Prisma ORM", not "use an ORM"), record the why and the rejected alternatives, state consequences honestly, keep Context under about 10 lines, write in the present tense, and mark backfilled ADRs with the original decision date.
+
+*ADR practice adapted from ECC `architecture-decision-records` (MIT); see THIRD_PARTY_NOTICES.md.*
+
 ## 6. Architecture Diagramming Guidelines
 
 - **Simplicity First**: Focus diagrams on structural clarity; avoid overwhelming viewers with every micro-component in a single view.

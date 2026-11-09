@@ -1,1 +1,12 @@
+# Markdown files
+
 REPO_STRUCTURE.md
+
+# Skip these folders
+ECC-framework/
+
+# Claude Code wiring created by .agents/scripts/adapters/setup-claude-code.mjs
+.claude/skills
+.claude/commands
+.claude/rules
+.claude/agents/

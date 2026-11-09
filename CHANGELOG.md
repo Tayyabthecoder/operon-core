@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-11-09
+
+Merges selected parts of ECC (`ecc-universal` v2.2.3, MIT) into this framework. The framework's control plane, least-privilege subagents, and validator stay the base; ECC material is adapted to them.
+
+### Added
+- 111 language-specific rules (21 language groups) adapted from ECC in `.agents/rules/`. Each carries dual frontmatter: `trigger: glob` + `globs:` for Antigravity and `paths:` for Claude Code, plus `source: ecc-universal@2.2.3`. Links to ECC `common/*` rules now point to this framework's rules.
+- 27 skills converted from ECC agents instead of adding new agents: 16 language review skills (`cpp-review` … `vue-review`) bound to the read-only `qa-reviewer`, and 11 language build-fix skills (`cpp-build-fix` … `harmonyos-app-build-fix`) bound to `code-implementer`. Their duplicated Prompt Defense sections were dropped and references to ECC agents re-pointed to framework skills. Skill bindings: 26 → 53.
+- `.agents/workflows/` with 9 workflows adapted from ECC (`plan`, `plan-prd`, `feature-dev`, `code-review`, `pr`, `build-fix`, `test-coverage`, `refactor-clean`, `update-docs`). Artifacts go to `docs/` instead of `.claude/`, ECC agents map to framework subagents, and each outward or destructive workflow carries a "Framework gate" note (approval for pushes, PR reviews, and deletions).
+- User skills `short-commit` and `production-quality-builder`.
+- Validator checks: skill name matches its directory, no skill declares tool grants, and the workflow inventory matches `framework.config.json`. Tests cover the same, plus language skill bindings (review → `qa-reviewer` only, build-fix → `code-implementer` only).
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) with the ECC MIT license and a list of adapted material.
+- [`setup-claude-code.mjs`](.agents/scripts/adapters/setup-claude-code.mjs): wires Claude Code discovery, which does not read `.agents/` itself. It links `.claude/skills`, `.claude/commands`, and `.claude/rules`; generates `.claude/agents/` from `.agents/agents/` with Claude Code tool names (`Read, Grep, Glob`, plus `Write, Edit, Bash` for `code-implementer` only) and `model` from `claudeCode.modelMap` (default `inherit`); creates `.claude/settings.json` and `CLAUDE.md` only when absent; `--check` reports gaps. Live-tested in a disposable copy with Claude Code 2.1.250: SessionStart hook, 6/6 subagents, 81/81 skills, 9/9 workflows discovered. `.gitignore` lists the links and generated agents. Two tests cover tool mapping and idempotent, non-destructive setup.
+
+### Changed
+- All six subagents gained ECC's "Prompt Defense Baseline" section.
+- `git-workflow` skill merged with ECC's: branching strategy guide, PR description template, reviewer checklist, rebase limits, conflict prevention, hook proposals, and an anti-pattern table. ECC's separate `git-workflow` skill is not imported.
+- Rules gained ECC guidance that was not already covered: `coding-standards.md` Section 15 (complexity signals), `testing.md` Section 22 (test-first workflow and default coverage), `security.md` Section 19 (security issue response), `git-workflow.md` Section 7 (whole-branch PR summaries).
+- Skills gained ECC material they lacked: `architecture-design` (ADR index, lifecycle, detection signals), `end-to-end-testing` (flakiness detection, quarantine, Playwright conventions), `testing-qa` Section 11 (TDD evidence report, pre-PR verification loop wired to `verify-runner.mjs`).
+- `framework.config.json`: version 2.0.0, 126 rules, 81 skills, 53 skill bindings, 9 workflows, and `validation.linkCheckExclusions` (`ECC-framework`), so the validator skips the staged upstream source whose own links are broken.
+
+### Not imported
+- ECC `common-agents`, `common-hooks`, `common-performance`, `common-development-workflow`, `common-patterns`, and `common-code-review` rules: they describe ECC's own agents, Claude Code hooks, or model selection, or are already covered by this framework's rules and `code-review` skill.
+- The other 41 ECC agents (general, domain, and orchestration agents such as `planner`, `code-reviewer`, `security-reviewer`, `gan-*`, `chief-of-staff`): their roles are covered by the six framework subagents or fall outside the framework's scope.
+- The other 85 ECC workflows: they depend on ECC-only scripts, hooks, or agents (`quality-gate`, `security-scan`, `review-pr`, `orch-*`, `multi-*`, `epic-*`), on ECC session tooling, or on specific languages already served by the language skills.
+- ECC skills other than the four merged above, including the script-based `continuous-learning`, `continuous-learning-v2`, and `ck` (bash/Python/Node scripts that record session data locally). Add them later only when needed.
+- `ecc-install-state.json`: it points to another project's paths and its hashes no longer match the adapted files.
+
+---
+
 ## [1.4.0] - 2026-11-08
 
 ### Added

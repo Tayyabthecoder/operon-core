@@ -104,3 +104,18 @@ When applying these coding standards:
 1. **Correctness, Safety & Security**: Accurate behavior and security protections always take precedence over style preferences.
 2. **Project Precedent**: Existing repository conventions and established patterns take precedence over generic external guidelines.
 3. **Simplicity & Pragmatism**: Prefer clean, simple implementations over dogmatic adherence to rules.
+
+## 15. Complexity Signals
+
+These thresholds are review signals, not hard limits (see Section 3): crossing one calls for a second look and, where it hurts readability, a refactor.
+
+| Signal | Prefer |
+| :--- | :--- |
+| Function longer than ~50 lines | Split into focused pieces with clear responsibilities |
+| Source file beyond ~800 lines (200-400 is typical) | Extract cohesive modules; tests, generated, and vendored files may exceed this when justified |
+| Nesting deeper than 4 levels | Early returns and guard clauses |
+| Unnamed thresholds, delays, or limits | Named constants or configuration |
+| In-place mutation of shared data | Return new values; mutate only where the language or performance profile requires it |
+| Folders organized only by file type | Organization by feature or domain when the project structure allows |
+
+*Adapted from ECC `common/coding-style` (MIT); see THIRD_PARTY_NOTICES.md.*

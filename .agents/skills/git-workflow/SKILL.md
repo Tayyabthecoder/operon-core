@@ -1,6 +1,6 @@
 ﻿---
 name: git-workflow
-description: Safely manages Git-based development workflows, including repository inspection, diff analysis, branching, staging, commits, remote synchronization, pull requests, merge conflicts, and history investigation. Use when checking repository state, preparing or reviewing commits, creating or switching branches, coordinating changes, resolving conflicts, or performing authorized Git operations.
+description: Safely manages Git-based development workflows, including repository inspection, diff analysis, branching strategies, staging, commits, remote synchronization, pull requests and their templates, merge versus rebase, merge conflicts, and history investigation. Use when checking repository state, choosing a branching strategy, preparing or reviewing commits and pull requests, creating or switching branches, coordinating changes, resolving conflicts, or performing authorized Git operations. For composing the commit message itself, use short-commit.
 ---
 
 # Git Workflow Skill
@@ -99,6 +99,16 @@ Branches isolate feature development and defect fixes:
 - **Switching Branches**: Run `git status` first. Never force a switch if local uncommitted files would be overwritten. Do not stash or discard user changes automatically just to force a switch; explain the conflict and ask the user.
 - **Deleting Branches**: Requires explicit user authorization. Prefer safe delete `git branch -d <branch>` (fails if unmerged). Never use force delete `git branch -D` without explicit direction. Never delete protected branches (`main`, `master`, `develop`, `release/*`).
 
+### Choosing a Branching Strategy
+
+Follow the strategy the repository already uses. When the user asks for one, recommend by team size and release cadence:
+
+| Strategy | Shape | Team Size | Release Cadence | Best For |
+| :--- | :--- | :--- | :--- | :--- |
+| **GitHub Flow** | `main` always deployable; feature branches merge to `main` through PRs after review and CI | Any | Continuous | SaaS, web apps, small teams |
+| **Trunk-Based** | Everyone merges to `main` within 1-2 days; feature flags hide unfinished work | 5+ experienced | Multiple per day | High-velocity teams with strong CI |
+| **GitFlow** | `develop` integrates features; `release/*` and `hotfix/*` merge to both `main` and `develop` | 10+ | Scheduled | Enterprise and regulated releases |
+
 ## 6. Staging and Committing
 
 Commits create permanent milestones in repository history. Do not treat a request to write code as authorization to commit it.
@@ -115,7 +125,7 @@ Only execute `git commit` when explicitly requested by the user or required by a
 ### Commit Message Standards
 Follow repository conventions. When Conventional Commits are used, format as:
 `<type>(<optional scope>): <imperative summary>` (e.g., `feat(loan): enforce renewal limits`).
-Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`. Include an optional body or issue reference footer (`Closes #123`) when relevant.
+Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. Include an optional body that explains why (not what) and an issue reference footer (`Closes #123`) when relevant. Use the [short-commit](../short-commit/SKILL.md) skill to compose the message from the staged diff.
 
 ### Prohibited Commit Actions
 - **Never Amend Shared Commits**: Never use `git commit --amend` if the commit has already been pushed to a shared remote.
@@ -151,6 +161,15 @@ Integrating code from divergent branches requires disciplined conflict managemen
 10. **Finalize Integration**: Run `git commit` (merge) or `git rebase --continue`.
 
 *Golden Rules*: Never use `git checkout --ours` or `--theirs` across entire files for application logic. Escalate domain ambiguities to the user. Abort cleanly via `git merge --abort` or `git rebase --abort` if directed.
+
+### When Not to Rebase
+Never rebase a branch that has been pushed to a shared remote, that others have based work on, that is protected (`main`, `develop`), or that is already merged. Rebasing rewrites history and breaks other people's work; use a merge or `git revert` instead.
+
+### Conflict Prevention
+- Keep feature branches small and short-lived (days, not weeks).
+- Integrate the target branch frequently (`git fetch` then merge or rebase a personal branch per project convention).
+- Coordinate with the team before touching widely shared files.
+- Prefer feature flags over long-lived branches, and review and merge PRs promptly.
 
 ## 9. Dangerous Commands, History Rewriting, and Safe Recovery
 
@@ -193,6 +212,7 @@ Tags mark specific points in repository history, typically for releases:
 - **Annotated vs. Lightweight**: Prefer annotated tags for releases (`git tag -a v1.4.0 -m "Release v1.4.0"`). Lightweight tags (`git tag v1.4.0`) are purely local pointers.
 - **Explicit Authorization**: Creating or pushing tags can trigger automated release deployments. Never create or push tags without explicit user authorization. Never repoint published tags (`git tag -f`).
 - **Git Hooks & CI Integrity**: Respect pre-commit hooks and linters. Fix underlying code issues rather than using `--no-verify`. Distinguish local check results from remote CI pipeline status.
+- **Proposing Repository Hooks**: When asked to add Git hooks, a typical `pre-commit` runs lint and fast tests and rejects staged diffs matching secret patterns (`password`, `api_key`, `secret`); a typical `pre-push` runs the full suite and rejects leftover debug output. Installing or changing hooks alters every contributor's workflow, so present the script and get approval first.
 
 ## 12. Pull Requests and Collaborative Reviews
 
@@ -204,6 +224,39 @@ When authorized to prepare pull requests via platform CLIs (`gh`, `glab`):
   - [ ] PR title is concise and follows conventions (e.g., `feat(loan): add renewal limit enforcement`).
   - [ ] PR description covers summary, motivation, test verification, and linked issues.
   - [ ] Respect repository templates, review policies, and branch protection.
+  - [ ] PR is focused on one feature or fix and reasonably small (under ~500 changed lines is ideal).
+
+### PR Description Template
+When the repository has no template of its own, structure the description as:
+
+```markdown
+## What
+Brief description of what this PR does.
+
+## Why
+Motivation and context.
+
+## How
+Key implementation details worth highlighting.
+
+## Testing
+- [ ] Unit tests added/updated
+- [ ] Integration tests added/updated
+- [ ] Manual testing performed
+
+## Checklist
+- [ ] Self-review completed
+- [ ] Documentation updated
+- [ ] No new warnings introduced
+- [ ] Tests pass locally
+- [ ] Related issues linked (Closes #123)
+```
+
+### Reviewer Checklist
+- [ ] Does the code solve the stated problem, including edge cases?
+- [ ] Is it readable and maintainable, with sufficient tests?
+- [ ] Are there security concerns?
+- [ ] Is the commit history clean (squashed if the project expects it)?
 
 ## 13. History Investigation and Root-Cause Tracking
 
@@ -230,6 +283,17 @@ Read-only Git tools help investigate regressions and understand architectural de
 | **Clean Repo** | Run `git clean -ndx` (dry-run). Review candidates before removal. | Never run `clean -fdx` without prior dry-run and explicit approval. |
 | **Git Failure** | Inspect exact error telemetry. Diagnose root cause before retrying. | Never escalate to destructive commands (`--force`, `reset --hard`). |
 | **Not a Git Repo** | Report status to user. Inquire if `git init` is requested. | Do not initialize a repository unprompted. |
+
+### Common Anti-Patterns
+| Avoid | Prefer |
+| :--- | :--- |
+| Committing directly to `main` | Feature branches and pull requests |
+| Committing `.env` or other secrets | `.gitignore` plus environment variables |
+| Giant PRs (1000+ lines) | Small, focused PRs |
+| Messages like `update` or `fix` | Descriptive Conventional Commit messages |
+| Force-pushing public history | `git revert` on shared branches |
+| Long-lived feature branches | Short branches integrated frequently |
+| Committing generated files (`dist/`, `node_modules/`) | Ignoring build output and dependencies |
 
 ## 15. Command Execution and Verification
 
@@ -269,6 +333,9 @@ This skill operates in direct alignment with project rules and complementary ski
 - [testing-qa](../testing-qa/SKILL.md): Test suite verification before staging, committing, or pushing.
 - [project-planning](../project-planning/SKILL.md): Branching strategy and delivery roadmaps.
 - [deployment.md](../../rules/deployment.md): Release tagging and deployment-triggering pushes.
+- [short-commit](../short-commit/SKILL.md): Composing short, meaningful commit messages from the staged diff.
+
+Branching strategies, the PR description template, rebase limits, conflict prevention, and the anti-pattern table are adapted from ECC (`ecc-universal` v2.2.3, MIT); see [THIRD_PARTY_NOTICES.md](../../../THIRD_PARTY_NOTICES.md).
 
 ## 18. Final Validation Checklist
 

@@ -62,6 +62,7 @@ Before creating an authorized commit:
 - **Zero Force-Pushes on Shared Branches**: Never run `git push --force` or `--force-with-lease` on shared or protected branches.
 - **Shield Remote Credentials**: Never embed personal access tokens or plaintext passwords in remote URLs (`https://token@github.com/...`).
 - **Acknowledge Divergence**: Check whether remote branches have received new commits from collaborators before pushing. Never overwrite upstream commits.
+- **Whole-Branch PR Summaries**: When preparing an authorized pull request, summarize every commit on the branch (`git log <base>..HEAD`, `git diff <base>...HEAD`), not only the latest one, and include a test plan. (Adapted from ECC `common/git-workflow`, MIT.)
 
 ## 8. Pulling and Synchronizing Changes
 

@@ -34,8 +34,9 @@ The framework is host-neutral. Its hooks and policies are plain Node.js scripts,
 
 | Pillar | What it provides |
 |---|---|
-| **Operational rules** | 15 rules covering workflow, change safety, security, architecture, testing, and more. Two core rules are always active through [`AGENTS.md`](AGENTS.md). |
-| **Skills catalog** | 52 reusable skills, from requirements analysis and database design to threat modeling, load testing, and incident response. |
+| **Operational rules** | 15 core rules covering workflow, change safety, security, architecture, testing, and more, plus 111 glob-activated language rules (21 language groups) adapted from ECC. Two core rules are always active through [`AGENTS.md`](AGENTS.md). |
+| **Skills catalog** | 81 reusable skills, from requirements analysis and database design to threat modeling, load testing, and incident response, including 16 language review and 11 language build-fix skills adapted from ECC. |
+| **Workflows** | 9 slash-command workflows (`/plan`, `/plan-prd`, `/feature-dev`, `/code-review`, `/pr`, `/build-fix`, `/test-coverage`, `/refactor-clean`, `/update-docs`) adapted from ECC and gated by the framework's safety rules. |
 | **Specification templates** | 11 templates for PRDs, SRS documents, ADRs, database schemas, API contracts, test plans, and deployment runbooks. |
 | **Subagent fleet** | 6 subagents with least-privilege tool access. Only one can modify files or run commands. |
 | **Safety hooks** | Lifecycle hooks that fingerprint the workspace, gate shell commands against an allowlist, block path traversal, and require verification before a session ends. |
@@ -140,8 +141,15 @@ Behavior is configured in [`.agents/framework.config.json`](.agents/framework.co
 
 The core hooks are host-neutral. [`claude-code.mjs`](.agents/scripts/adapters/claude-code.mjs) maps Claude Code's tool payloads onto them: `allow` defers to Claude Code's own permissions, `force_ask` becomes `ask`, and `deny` becomes `deny`.
 
-1. Merge [`claude-code.settings.example.json`](.agents/scripts/adapters/claude-code.settings.example.json) into your `.claude/settings.json`.
-2. Add a `CLAUDE.md` at the repository root containing `@AGENTS.md` so Claude Code loads the core rules.
+Claude Code does not read `.agents/` on its own. Run the setup script once from the repository root (and again after changing subagents):
+
+```bash
+node .agents/scripts/adapters/setup-claude-code.mjs
+```
+
+It links `.claude/skills`, `.claude/commands`, and `.claude/rules` to the framework's skills, workflows, and rules (junctions on Windows, symlinks elsewhere), generates `.claude/agents/` from `.agents/agents/` with Claude Code tool names (`Read`, `Grep`, `Glob`; `Write`, `Edit`, `Bash` only for `code-implementer`), creates `.claude/settings.json` with the adapter hooks, and creates a `CLAUDE.md` containing `@AGENTS.md`. Existing user files are never overwritten; the script reports what to merge by hand. Check the wiring at any time with `--check`.
+
+Enabling the hooks applies the framework's command policy to every Claude Code session in the repository, including chained shell commands being denied.
 
 ## Repository Structure
 
@@ -164,10 +172,11 @@ operon-core/
     ├── hooks.json             # Lifecycle hook registrations
     ├── agents/                # 6 subagent definitions
     ├── plugins/               # Prototype plugins (experimental)
-    ├── rules/                 # 15 domain and operational rules
+    ├── rules/                 # 15 core rules + 111 language rules
     ├── scratch/               # Temporary agent workspace (excluded from fingerprinting)
     ├── scripts/               # Hooks, adapters, tests, validator, and verification runner
-    ├── skills/                # 52 reusable engineering skills
+    ├── skills/                # 81 reusable engineering skills
+    ├── workflows/             # 9 slash-command workflows (adapted from ECC)
     └── templates/             # 11 specification and planning templates
 ```
 
@@ -177,6 +186,7 @@ operon-core/
 - [`.agents/agents/README.md`](.agents/agents/README.md): subagent architecture and the Primary Broker pattern
 - [`.agents/plugins/README.md`](.agents/plugins/README.md): plugin structure (prototypes only)
 - [`CHANGELOG.md`](CHANGELOG.md): release history, following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): material adapted from ECC (`ecc-universal`, MIT) and its license
 
 ## Contributing
 

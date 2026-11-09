@@ -160,3 +160,12 @@ When designing and executing tests:
 2. **Preserve Assertion Rigor**: Never weaken assertions, delete tests, or compromise security checks merely to make a test suite pass.
 3. **Verify, Never Assume**: Distinguish code that has been verified through executed tests from code that has only been visually reviewed.
 4. **Deterministic & Isolated**: Prioritize fast, reliable, and isolated test suites that fail only when real software defects exist.
+
+## 22. Test-First Workflow and Defaults
+
+- **Red-Green-Refactor**: When the project practices TDD, or for new business logic with clear inputs and outputs, write the failing test first (red), confirm it fails for the expected reason, implement the minimum to pass (green), then refactor with the suite green.
+- **Fix the Code, Not the Test**: When a test fails, check isolation and mocks first; change the test only when the test itself is wrong.
+- **Behavior-Describing Names**: Name tests after the behavior under test (e.g., `returns empty array when no markets match query`, `throws when API key is missing`).
+- **Default Coverage Target**: Follow the project's configured threshold. When the user asks for a default, use 80% line coverage across unit and integration tests, with end-to-end tests for critical user flows, still read as a diagnostic (Section 15), not a goal in itself.
+
+*Adapted from ECC `common/testing` (MIT); see THIRD_PARTY_NOTICES.md.*

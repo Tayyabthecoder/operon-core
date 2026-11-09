@@ -175,6 +175,17 @@ Eliminate sources of non-deterministic test behavior:
 - **Dynamic Port & Host Binding**: Bind test servers to free ports to avoid collisions during parallel runs.
 - **Time and Clock Mocking**: If testing time-dependent logic (session timeouts), freeze or advance virtual system time deterministically.
 - **Investigate Intermittent Failures**: Never mask flakiness by adding global retries (`retries: 5`). Treat flaky tests as synchronization defects.
+- **Detect Before Fixing**: Confirm suspected flakiness by repetition (Playwright: `--repeat-each=10`) rather than a single rerun.
+- **Quarantine Openly**: When a flaky test must be disabled temporarily, mark it with the framework's skip/fixme API and a tracking issue (`test.fixme(true, 'Flaky - Issue #123')`), and report it; never delete it silently.
+
+### Playwright Conventions
+- **Page Object Model**: Wrap each page's locators and actions in a page object (`ItemsPage.goto()`, `search(query)`) so selectors live in one place and specs read as user journeys.
+- **Stable Selectors**: Prefer roles and labels; fall back to `data-testid` attributes over CSS paths.
+- **Wait on Signals**: Wait for a specific response or element state (`page.waitForResponse(...)`), not fixed timeouts.
+- **Evidence on Failure**: Configure `trace: 'on-first-retry'`, `screenshot: 'only-on-failure'`, and `video: 'retain-on-failure'`, and keep HTML/JUnit reports as CI artifacts.
+- **CI Settings**: `forbidOnly` in CI, a dev server through `webServer` with `reuseExistingServer` off in CI, and at most a small CI-only retry count whose retried tests are still reported as flaky.
+
+*Flakiness detection, quarantine, and Playwright conventions adapted from ECC `e2e-testing` (MIT); see THIRD_PARTY_NOTICES.md.*
 
 ## 16. Regression Testing Strategy & Blast Radius Analysis
 

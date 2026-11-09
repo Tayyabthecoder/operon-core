@@ -30,7 +30,7 @@ function readFileClean(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '');
 }
 
-// 1. Verify Rules (15 rules)
+// 1. Verify Rules (list from framework.config.json)
 console.log(`=== 1. Validating Framework Rules (.agents/rules/) ===`);
 const expectedRules = frameworkConfig.rules || [
   'accessibility.md',
@@ -69,7 +69,7 @@ if (!fs.existsSync(rulesDir)) {
   }
 }
 
-// 2. Verify Skills (52 skills)
+// 2. Verify Skills (count from framework.config.json)
 console.log(`\n=== 2. Validating Framework Skills (.agents/skills/) ===`);
 const skillsDir = path.join(rootDir, '.agents', 'skills');
 if (!fs.existsSync(skillsDir)) {
@@ -87,14 +87,20 @@ if (!fs.existsSync(skillsDir)) {
   }
 
   let skillsWithValidFrontmatter = 0;
+  const nameMismatches = [];
+  const toolGrants = [];
   for (const skill of skillFolders) {
     const skillMdPath = path.join(skillsDir, skill, 'SKILL.md');
     if (!fs.existsSync(skillMdPath)) {
       reportFail('Skills', `Missing SKILL.md in: ${skill}`);
     } else {
       const content = readFileClean(skillMdPath);
-      if (content.startsWith('---') && content.includes('name:') && content.includes('description:')) {
+      const frontmatter = (content.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1];
+      if (frontmatter !== undefined && /^name:/m.test(frontmatter) && /^description:/m.test(frontmatter)) {
         skillsWithValidFrontmatter++;
+        const declaredName = (frontmatter.match(/^name:\s*["']?([^"'\r\n]+)["']?\s*$/m) || [])[1];
+        if (declaredName !== skill) nameMismatches.push(`${skill} (name: ${declaredName})`);
+        if (/^tools:/m.test(frontmatter)) toolGrants.push(skill);
       } else {
         reportFail('Skills', `Invalid YAML frontmatter in: ${skill}/SKILL.md`);
       }
@@ -103,6 +109,43 @@ if (!fs.existsSync(skillsDir)) {
 
   if (skillsWithValidFrontmatter === expectedSkillCount) {
     reportPass('Skills', `All ${expectedSkillCount} skills possess valid SKILL.md and YAML frontmatter`);
+  }
+  if (nameMismatches.length === 0) {
+    reportPass('Skills', 'Every skill frontmatter name matches its directory (no duplicate or shadowed skills)');
+  } else {
+    reportFail('Skills', `Skill name/directory mismatch: ${nameMismatches.join(', ')}`);
+  }
+  if (toolGrants.length === 0) {
+    reportPass('Skills', 'No skill declares tool grants; privileges come only from subagent definitions');
+  } else {
+    reportFail('Skills', `Skills must not declare tools: ${toolGrants.join(', ')}`);
+  }
+}
+
+// 2b. Verify Workflows (list from framework.config.json)
+console.log(`\n=== 2b. Validating Workflows (.agents/workflows/) ===`);
+const expectedWorkflows = frameworkConfig.workflows || [];
+const workflowsDir = path.join(rootDir, '.agents', 'workflows');
+const presentWorkflows = fs.existsSync(workflowsDir)
+  ? fs.readdirSync(workflowsDir).filter((f) => f.endsWith('.md'))
+  : [];
+const unlistedWorkflows = presentWorkflows.filter((f) => !expectedWorkflows.includes(f));
+if (unlistedWorkflows.length === 0 && presentWorkflows.length === (frameworkConfig.expectedCounts?.workflows ?? expectedWorkflows.length)) {
+  reportPass('Workflows', `Found exactly ${presentWorkflows.length} workflows listed in framework.config.json`);
+} else {
+  reportFail('Workflows', `Workflow inventory mismatch: present=${presentWorkflows.length}, unlisted=${unlistedWorkflows.join(', ') || 'none'}`);
+}
+for (const workflow of expectedWorkflows) {
+  const workflowPath = path.join(workflowsDir, workflow);
+  if (!fs.existsSync(workflowPath)) {
+    reportFail('Workflows', `Missing workflow: ${workflow}`);
+    continue;
+  }
+  const frontmatter = (readFileClean(workflowPath).match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1];
+  if (frontmatter !== undefined && /^description:/m.test(frontmatter)) {
+    reportPass('Workflows', `Valid workflow with description: ${workflow}`);
+  } else {
+    reportFail('Workflows', `Workflow missing frontmatter description: ${workflow}`);
   }
 }
 
@@ -162,12 +205,19 @@ for (const doc of expectedDocs) {
 // 5. Markdown Link & Portability Validation
 console.log(`\n=== 5. Validating Markdown Links & Portability ===`);
 
+// Third-party source folders staged for merging (e.g. an upstream framework copy) are
+// listed in framework.config.json `validation.linkCheckExclusions` and skipped here.
+const linkCheckExclusions = new Set(
+  (frameworkConfig.validation?.linkCheckExclusions || []).map((p) => path.resolve(rootDir, p))
+);
+
 function getAllMarkdownFiles(dir) {
   let results = [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'scratch') continue;
     const fullPath = path.join(dir, entry.name);
+    if (linkCheckExclusions.has(path.resolve(fullPath))) continue;
     if (entry.isDirectory()) {
       results = results.concat(getAllMarkdownFiles(fullPath));
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
