@@ -344,3 +344,35 @@ Before concluding any testing task, verify each item:
 - [ ] **Quality Gates & CI**: Do test runner, linter, and typecheck commands pass with zero errors?
 - [ ] **No Code in Skills Directory**: Are all test files located in the project's application test folders?
 - [ ] **Honest Reporting**: Does the final test summary reflect actual command outputs without fabricated data?
+
+## 11. Test-First Evidence and Pre-PR Verification Loop
+
+### TDD Evidence Report
+When work follows the test-first workflow (`testing.md` Section 22), keep a short evidence report in the project's documentation (for example `docs/testing/<task>.tdd.md`) so the proof survives session restarts and squash merges:
+1. **Source**: the plan or PRD used, or the journeys derived during the run.
+2. **Per behavior**: a one-sentence summary, the exact command run, the RED and GREEN output excerpts, and what the passing test guarantees.
+3. **Guarantee table**: `| # | What is guaranteed | Test file or command | Type | Result | Evidence |`.
+4. **Coverage and gaps**: the coverage command and result, plus skipped or deferred tests.
+Quote real commands and outputs only; never record PASS for a test that was not run. Checkpoint commits per stage (RED, GREEN, refactor) are optional and need the user's commit authorization.
+
+### Pre-PR Verification Loop
+Before declaring work ready for review, run these phases in order and stop at the first failure:
+
+| Phase | Typical command | Pass condition |
+| :--- | :--- | :--- |
+| 1. Build | `npm run build`, `cargo build`, `go build ./...` | Exit code 0 |
+| 2. Types | `tsc --noEmit`, `pyright`, `mypy` | No errors |
+| 3. Lint | `npm run lint`, `ruff check .` | No errors; warnings reported |
+| 4. Tests | Project suite with coverage | All pass; coverage per `testing.md` |
+| 5. Security | Search the diff for secrets and debug output | Nothing found |
+| 6. Diff review | `git diff --stat` and file-by-file review | Only intended changes |
+
+Run the test phase through `verify-runner.mjs` with a project profile (`node-test`, `npm-test`, `pytest`) so the Stop gate receives matching evidence, then report:
+
+```
+VERIFICATION REPORT
+Build: PASS/FAIL | Types: PASS/FAIL (n) | Lint: PASS/FAIL (n) | Tests: x/y, z% | Security: PASS/FAIL | Diff: n files
+Overall: READY / NOT READY
+```
+
+*Evidence report and verification loop adapted from ECC `tdd-workflow` and `verification-loop` (MIT); see THIRD_PARTY_NOTICES.md.*
