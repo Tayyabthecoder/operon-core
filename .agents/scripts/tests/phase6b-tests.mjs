@@ -1107,6 +1107,59 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
         try { fs.rmSync(artifactDir, { recursive: true, force: true }); } catch {}
       }
     });
+
+    test('generated Claude Code subagents keep least privilege with Claude Code tool names', async () => {
+      const { toClaudeAgent } = await import(pathToFileURL(path.resolve('.agents/scripts/adapters/setup-claude-code.mjs')).href);
+      const agentsDir = path.resolve('.agents/agents');
+      for (const file of fs.readdirSync(agentsDir).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
+        const out = toClaudeAgent(fs.readFileSync(path.join(agentsDir, file), 'utf8'), `.agents/agents/${file}`);
+        const front = out.split('---')[1];
+        const tools = (front.match(/^tools:\s*(.*)$/m) || [])[1].split(',').map((t) => t.trim()).filter(Boolean);
+        assert.ok(tools.includes('Read'), file);
+        assert.ok(!tools.some((t) => /_/.test(t)), `${file} still has framework tool names`);
+        const writes = tools.filter((t) => ['Write', 'Edit', 'Bash'].includes(t));
+        if (file === 'code-implementer.md') assert.deepEqual(writes, ['Write', 'Edit', 'Bash']);
+        else assert.deepEqual(writes, [], file);
+        assert.match(front, /^model: (inherit|sonnet|opus|haiku)$/m, file);
+        assert.ok(!/skills\//.test(front), `${file} keeps skills/ prefixes`);
+      }
+    });
+
+    test('setup-claude-code wires .claude idempotently and never overwrites user files', () => {
+      const ws = path.join(tempTestDir, 'cc-setup');
+      for (const dir of ['.agents/skills/demo', '.agents/workflows', '.agents/rules', '.agents/agents', '.agents/scripts/adapters']) {
+        fs.mkdirSync(path.join(ws, dir), { recursive: true });
+      }
+      fs.writeFileSync(path.join(ws, '.agents/skills/demo/SKILL.md'), '---\nname: demo\ndescription: d\n---\n', 'utf8');
+      fs.writeFileSync(path.join(ws, '.agents/workflows/plan.md'), '---\ndescription: p\n---\n', 'utf8');
+      fs.writeFileSync(path.join(ws, '.agents/rules/core.md'), '---\ntrigger: always_on\n---\n', 'utf8');
+      fs.copyFileSync(path.resolve('.agents/agents/qa-reviewer.md'), path.join(ws, '.agents/agents/qa-reviewer.md'));
+      fs.copyFileSync(
+        path.resolve('.agents/scripts/adapters/claude-code.settings.example.json'),
+        path.join(ws, '.agents/scripts/adapters/claude-code.settings.example.json')
+      );
+      fs.writeFileSync(path.join(ws, 'CLAUDE.md'), '# My own notes\n', 'utf8');
+      const script = path.resolve('.agents/scripts/adapters/setup-claude-code.mjs');
+      const run = (...args) => spawnSync(process.execPath, [script, '--root', ws, ...args], { encoding: 'utf8' });
+
+      assert.equal(run('--check').status, 1);
+      const first = run();
+      assert.ok(first.stdout.includes('Linked .claude/skills'));
+      assert.ok(fs.existsSync(path.join(ws, '.claude/skills/demo/SKILL.md')));
+      assert.ok(fs.existsSync(path.join(ws, '.claude/commands/plan.md')));
+      assert.ok(fs.existsSync(path.join(ws, '.claude/rules/core.md')));
+      assert.ok(fs.readFileSync(path.join(ws, '.claude/agents/qa-reviewer.md'), 'utf8').includes('tools: Read, Grep, Glob'));
+      assert.ok(fs.readFileSync(path.join(ws, '.claude/settings.json'), 'utf8').includes('adapters/claude-code.mjs'));
+      // User-owned CLAUDE.md is reported, not rewritten
+      assert.equal(fs.readFileSync(path.join(ws, 'CLAUDE.md'), 'utf8'), '# My own notes\n');
+      assert.ok(first.stdout.includes('CLAUDE.md exists without an "@AGENTS.md" line'));
+
+      fs.writeFileSync(path.join(ws, 'CLAUDE.md'), '# My own notes\n@AGENTS.md\n', 'utf8');
+      const second = run();
+      assert.equal(second.status, 0);
+      assert.ok(!second.stdout.includes('[DONE]'), 'rerun must change nothing');
+      assert.equal(run('--check').status, 0);
+    });
   });
 
   // ==========================================
@@ -1159,7 +1212,8 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       }
     });
 
-    test('all 26 skill bindings across the six agents resolve to existing directories in .agents/skills/', () => {
+    test('all configured skill bindings across the six agents resolve to existing directories in .agents/skills/', () => {
+      const config = JSON.parse(fs.readFileSync(path.resolve('.agents/framework.config.json'), 'utf8'));
       let count = 0;
       for (const file of agentFiles) {
         const content = fs.readFileSync(path.join(agentsDir, file), 'utf8');
@@ -1169,7 +1223,45 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
           assert.ok(fs.existsSync(path.resolve('.agents', skill)), `Missing skill directory: ${skill}`);
         }
       }
-      assert.equal(count, 26);
+      assert.equal(count, config.expectedCounts.skillBindings);
+    });
+
+    test('language review skills bind only to read-only qa-reviewer; build-fix skills only to code-implementer (ECC merge)', () => {
+      for (const file of agentFiles) {
+        const content = fs.readFileSync(path.join(agentsDir, file), 'utf8');
+        const frontmatter = content.split('---')[1] || '';
+        const reviewSkills = frontmatter.match(/skills\/[\w-]+-review\b/g) || [];
+        const buildSkills = frontmatter.match(/skills\/[\w-]+-build-fix\b/g) || [];
+        if (file !== 'qa-reviewer.md') {
+          assert.deepEqual(reviewSkills.filter((s) => s !== 'skills/code-review' && s !== 'skills/security-review' && s !== 'skills/architecture-review'), [], file);
+        }
+        if (file !== 'code-implementer.md') {
+          assert.deepEqual(buildSkills, [], file);
+        }
+      }
+    });
+
+    test('every skill name matches its directory and no skill declares tool grants (ECC merge)', () => {
+      const skillsRoot = path.resolve('.agents/skills');
+      for (const dir of fs.readdirSync(skillsRoot, { withFileTypes: true }).filter((d) => d.isDirectory())) {
+        const content = fs.readFileSync(path.join(skillsRoot, dir.name, 'SKILL.md'), 'utf8').replace(/^﻿/, '');
+        const frontmatter = (content.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || '';
+        const declared = (frontmatter.match(/^name:\s*["']?([^"'\r\n]+)["']?\s*$/m) || [])[1];
+        assert.equal(declared, dir.name, `name mismatch in ${dir.name}`);
+        assert.ok(!/^tools:/m.test(frontmatter), `skill ${dir.name} declares tools`);
+      }
+    });
+
+    test('every configured workflow exists with a description and a framework source marker (ECC merge)', () => {
+      const config = JSON.parse(fs.readFileSync(path.resolve('.agents/framework.config.json'), 'utf8'));
+      const present = fs.readdirSync(path.resolve('.agents/workflows')).filter((f) => f.endsWith('.md')).sort();
+      assert.deepEqual(present, [...config.workflows].sort());
+      for (const workflow of config.workflows) {
+        const content = fs.readFileSync(path.resolve('.agents/workflows', workflow), 'utf8');
+        const frontmatter = (content.match(/^---\r?\n([\s\S]*?)\r?\n---/) || [])[1] || '';
+        assert.ok(/^description:/m.test(frontmatter), `${workflow} lacks description`);
+        assert.ok(!/(^|[^\w])\.claude\/(plans|prds|reviews|docs)\//.test(content), `${workflow} still writes Claude-only artifact paths`);
+      }
     });
 
     test('core-workflow.md Section 12 codifies Primary Agent Broker Protocol and secret redaction', () => {
