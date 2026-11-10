@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      # Run every OS to completion so a failure on one platform does not hide the other.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # README prerequisite: Node.js 21 or later (quoted test globs are expanded by Node).
+          node-version: 22
+
+      - name: Validate framework
+        run: node .agents/scripts/verify-runner.mjs --profile framework-validator
+
+      - name: Run safety and lifecycle tests
+        run: node .agents/scripts/verify-runner.mjs --profile node-test -- ".agents/scripts/tests/*.mjs"
