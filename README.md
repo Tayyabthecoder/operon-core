@@ -2,7 +2,7 @@
 
 **A coordinated multi-agent engineering framework.** Specialized subagents work under a single Primary Broker, with lifecycle safety hooks and drift-resistant verification keeping every change controlled and auditable.
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Node](https://img.shields.io/badge/node-%E2%89%A521-339933)
 
@@ -135,19 +135,27 @@ Hooks are registered in [`.agents/hooks.json`](.agents/hooks.json) and implement
 | `PostToolUse` | `post-tool-safety.mjs` | Writes redacted audit entries that never include argument values |
 | `Stop` | `stop-gate.mjs` | Compares the workspace against the baseline and blocks completion until verification evidence exists |
 
-Behavior is configured in [`.agents/framework.config.json`](.agents/framework.config.json), including expected asset counts, stop-gate scope, and fingerprint exclusions.
+With the Claude Code adapter, every governed tool call is also recorded (tool, target path, decision, and a reason with quoted commands and paths redacted) in the session's artifact directory under your OS temp folder. Summarize the decisions with:
+
+```bash
+node .agents/scripts/summarize-hook-logs.mjs
+```
+
+Add `--json` for machine-readable output, or `--artifactDir <dir>` to read a specific directory.
+
+Behavior is configured in [`.agents/framework.config.json`](.agents/framework.config.json), including expected asset counts, stop-gate scope, fingerprint exclusions, and project-specific command allowlist entries (`commandPolicy.allowedCommands`, a list of exact command lines such as `"npm run build"`). Background processes such as dev servers are denied by default and run only if the exact command is listed in `commandPolicy.allowedBackgroundCommands`. Listed commands still go through the chaining and destructive-command checks, and editing the config requires confirmation because it is a control-plane asset.
 
 ## Using with Claude Code
 
 The core hooks are host-neutral. [`claude-code.mjs`](.agents/scripts/adapters/claude-code.mjs) maps Claude Code's tool payloads onto them: `allow` defers to Claude Code's own permissions, `force_ask` becomes `ask`, and `deny` becomes `deny`.
 
-Claude Code does not read `.agents/` on its own. Run the setup script once from the repository root (and again after changing subagents):
+Claude Code does not read `.agents/` on its own. Run the setup script once from the repository root (and again after changing rules or subagents):
 
 ```bash
 node .agents/scripts/adapters/setup-claude-code.mjs
 ```
 
-It links `.claude/skills`, `.claude/commands`, and `.claude/rules` to the framework's skills, workflows, and rules (junctions on Windows, symlinks elsewhere), generates `.claude/agents/` from `.agents/agents/` with Claude Code tool names (`Read`, `Grep`, `Glob`; `Write`, `Edit`, `Bash` only for `code-implementer`), creates `.claude/settings.json` with the adapter hooks, and creates a `CLAUDE.md` containing `@AGENTS.md`. Existing user files are never overwritten; the script reports what to merge by hand. Check the wiring at any time with `--check`.
+It links `.claude/skills` and `.claude/commands` to the framework's skills and workflows (junctions on Windows, symlinks elsewhere), generates `.claude/rules/` as copies of the rules except those declared `trigger: model_decision` without `paths:` (Claude Code loads every file in `.claude/rules` at session start, so those four rules are listed in `AGENTS.md` for the agent to read on demand instead), generates `.claude/agents/` from `.agents/agents/` with Claude Code tool names (`Read`, `Grep`, `Glob`; `Write`, `Edit`, `Bash` only for `code-implementer`), creates `.claude/settings.json` with the adapter hooks, and creates a `CLAUDE.md` containing `@AGENTS.md`. Subagent model tiers map to Claude Code models through `claudeCode.modelMap` in `framework.config.json` (currently `pro` → `opus` for the planner, QA, security, and accessibility agents; `flash` → `sonnet` for the implementer and debugger). Existing user files are never overwritten; the script reports what to merge by hand. Check the wiring at any time with `--check`.
 
 Enabling the hooks applies the framework's command policy to every Claude Code session in the repository, including chained shell commands being denied.
 
@@ -164,6 +172,8 @@ operon-core/
 │   ├── architecture/          # Architecture specs and ADRs
 │   ├── database/              # Schemas and data dictionaries
 │   ├── deployment/            # Runbooks and release checklists
+│   ├── design/                # Design tokens, component specs, accessibility notes
+│   ├── maintenance/           # Runbooks, troubleshooting, improvement tracker
 │   ├── product/               # PRDs and user journeys
 │   ├── requirements/          # Software requirements specifications
 │   └── testing/               # Test plans and verification matrices
@@ -192,7 +202,7 @@ operon-core/
 
 1. Read [`AGENTS.md`](AGENTS.md) and the rules in [`.agents/rules/`](.agents/rules/) before making changes.
 2. Keep changes scoped. Avoid unrelated refactoring and unnecessary new files or dependencies.
-3. Run both verification commands from [Getting Started](#getting-started) and make sure they pass.
+3. Run both verification commands from [Getting Started](#getting-started) and make sure they pass. The same two commands run in CI on Ubuntu and Windows ([`ci.yml`](.github/workflows/ci.yml)).
 4. Record notable changes in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License

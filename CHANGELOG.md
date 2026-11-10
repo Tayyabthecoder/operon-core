@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+- Command policy in `framework.config.json`: `commandPolicy.allowedCommands` (exact foreground command lines) and `commandPolicy.allowedBackgroundCommands` (exact commands allowed as background processes). Listed commands still go through the chaining and destructive-command checks. `git diff --staged` is allowed.
+- `.agents/scripts/lib/hook-common.mjs`: one `readStdin` and one workspace-root implementation shared by the hooks and the Claude Code adapter.
+- Claude Code adapter audit log: every governed tool call is recorded in `hook-event-log.jsonl` (tool, target, decision, reason with quoted values removed). Before this, only the standalone hook scripts logged decisions. `summarize-hook-logs.mjs` summarizes the logs.
+- `context-cost.mjs` and `lib/rule-metadata.mjs`: measure what each rule and skill adds to context and classify when Claude Code loads it. Findings and options are in `docs/maintenance/context-cost-audit.md`.
+- Validator checks that the README version badge matches `framework.config.json` and that plugin directories listed in `.agents/plugins/README.md` exist.
+- `docs/design/` and `docs/maintenance/` guides, plus the framework improvement tracker and the context cost audit.
+- `.github/workflows/ci.yml`: validator and tests on Ubuntu and Windows. Not yet run on GitHub.
+
+### Changed
+- Deletion commands (`rm`, `del`, `Remove-Item`, and similar) are detected by command token, including behind wrappers such as `cmd /c` and `bash -c`, instead of by substring, so `git log --grep=del` is no longer denied. `git rm` stays denied.
+- `setup-claude-code.mjs` generates `.claude/rules/` as copies instead of linking `.agents/rules`, leaving out rules declared `trigger: model_decision` without `paths:`. Re-run it after changing rules. Those rules are listed in `AGENTS.md` under "On-Demand Rules".
+- Eight domain rules gained `paths:` globs (`frontend`, `accessibility`, `backend`, `api-design`, `database`, `deployment`, `testing`, `documentation`), and `security.md` is `trigger: always_on`. Rules loaded at session start in Claude Code drop from 15 to 3 (about 51,200 to 7,800 estimated tokens).
+- `claudeCode.modelMap` maps `pro` to `opus` and `flash` to `sonnet`.
+- `hooks.json` key `phase6b-safety-lifecycle` renamed to `safety-lifecycle`.
+- README version badge corrected to 2.0.0, and `.agents/plugins/README.md` no longer lists prototype directories that do not exist.
+
+---
+
 ## [2.0.0] - 2026-11-09
 
 Merges selected parts of ECC (`ecc-universal` v2.2.3, MIT) into this framework. The framework's control plane, least-privilege subagents, and validator stay the base; ECC material is adapted to them.

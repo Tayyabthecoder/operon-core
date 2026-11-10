@@ -202,6 +202,34 @@ for (const doc of expectedDocs) {
   }
 }
 
+// 4b. Verify documentation claims that can drift from the repository
+console.log(`\n=== 4b. Validating README Version & Plugin Directory Claims ===`);
+const readmePath = path.join(rootDir, 'README.md');
+if (frameworkConfig.version && fs.existsSync(readmePath)) {
+  const badgeVersion = (readFileClean(readmePath).match(/badge\/version-(\d+\.\d+\.\d+)-/) || [])[1];
+  if (badgeVersion === undefined) {
+    reportFail('Release', 'README.md has no version badge to compare against framework.config.json');
+  } else if (badgeVersion === frameworkConfig.version) {
+    reportPass('Release', `README version badge matches framework.config.json (${badgeVersion})`);
+  } else {
+    reportFail('Release', `README version badge (${badgeVersion}) does not match framework.config.json (${frameworkConfig.version})`);
+  }
+}
+
+const pluginsDir = path.join(rootDir, '.agents', 'plugins');
+const pluginsReadmePath = path.join(pluginsDir, 'README.md');
+if (fs.existsSync(pluginsReadmePath)) {
+  // Plugin directories are listed as "- `name/`" bullets under the "Plugin Directories" heading.
+  const pluginSection = (readFileClean(pluginsReadmePath).match(/^## \d+\. Plugin Directories\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m) || [])[1] || '';
+  const listedPlugins = [...pluginSection.matchAll(/^- `([^`/]+)\/`/gm)].map((m) => m[1]);
+  const missingPlugins = listedPlugins.filter((name) => !fs.existsSync(path.join(pluginsDir, name)));
+  if (missingPlugins.length === 0) {
+    reportPass('Plugins', `Every plugin directory listed in plugins/README.md exists (${listedPlugins.length} listed)`);
+  } else {
+    reportFail('Plugins', `plugins/README.md lists directories that do not exist: ${missingPlugins.join(', ')}`);
+  }
+}
+
 // 5. Markdown Link & Portability Validation
 console.log(`\n=== 5. Validating Markdown Links & Portability ===`);
 
@@ -386,7 +414,7 @@ console.log(`\n=== 7. Validating Control Plane Safety Hooks (behavioral) ===`);
 const hooksJsonPath = path.join(rootDir, '.agents', 'hooks.json');
 if (fs.existsSync(hooksJsonPath)) {
   const hooksConfig = JSON.parse(readFileClean(hooksJsonPath));
-  const lifecycle = hooksConfig['phase6b-safety-lifecycle'] || {};
+  const lifecycle = hooksConfig['safety-lifecycle'] || {};
   if (lifecycle.SessionStart && lifecycle.PreToolUse && lifecycle.PostToolUse && lifecycle.Stop) {
     reportPass('Hooks', '.agents/hooks.json declares bindings for SessionStart, PreToolUse, PostToolUse, and Stop');
   } else {
