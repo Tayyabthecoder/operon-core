@@ -26,6 +26,25 @@ export function isConditionalRule(text) {
 
 /**
  * @param {string} text
+ * @returns {string[]} The quoted or bare entries of the `paths:` list (empty when absent)
+ */
+export function rulePaths(text) {
+  const front = frontmatterOf(text);
+  if (front === null) return [];
+  const lines = front.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^paths:\s*$/.test(line));
+  if (start === -1) return [];
+  const paths = [];
+  for (const line of lines.slice(start + 1)) {
+    const item = line.match(/^\s+-\s+(.*?)\s*$/);
+    if (!item) break;
+    paths.push(item[1].replace(/^["']|["']$/g, ''));
+  }
+  return paths;
+}
+
+/**
+ * @param {string} text
  * @returns {string|null} The `trigger` value (always_on, model_decision, glob), if any
  */
 export function ruleTrigger(text) {

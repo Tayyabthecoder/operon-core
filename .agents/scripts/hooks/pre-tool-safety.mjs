@@ -37,7 +37,7 @@ export function checkShellMetacharacters(cmd) {
   return null;
 }
 
-const DELETION_COMMANDS = new Set(['rm', 'del', 'rmdir', 'remove-item', 'ri', 'rd', 'erase']);
+const DELETION_COMMANDS = new Set(['rm', 'del', 'rmdir', 'remove-item', 'ri', 'rd', 'erase', 'rimraf', 'shred', 'unlink']);
 
 // Launchers whose arguments are themselves a command line (for example `cmd /c del x`).
 const COMMAND_WRAPPERS = new Set(['cmd', 'powershell', 'pwsh', 'sh', 'bash', 'zsh', 'sudo', 'env', 'xargs', 'start', 'call', 'command', 'nice', 'nohup', 'exec']);
@@ -47,7 +47,7 @@ const COMMAND_WRAPPERS = new Set(['cmd', 'powershell', 'pwsh', 'sh', 'bash', 'zs
  * @param {string} token
  * @returns {string}
  */
-function commandName(token) {
+export function commandName(token) {
   const unquoted = token.replace(/^["']+|["']+$/g, '');
   const base = unquoted.split(/[\\/]/).pop().toLowerCase();
   return base.replace(/\.(exe|cmd|bat|com)$/, '');
@@ -103,6 +103,14 @@ export function checkDestructiveCommands(cmd) {
     {
       pattern: /\bgit\s+push\b.*\s(?:--force(?:-with-lease)?|-f)(?=\s|$)/i,
       reason: 'Destructive git operations (force push) are strictly prohibited',
+    },
+    {
+      pattern: /\bfind\b.*\s-delete(?=\s|$)/i,
+      reason: 'Direct filesystem deletion commands (find -delete) are strictly prohibited',
+    },
+    {
+      pattern: /\bfind\b.*\s-exec(?:dir)?\s+(?:rm|del|rimraf|shred|unlink)\b/i,
+      reason: 'Direct filesystem deletion commands (find -exec rm) are strictly prohibited',
     },
     {
       pattern: /\bDROP\s+TABLE\b/i,
@@ -168,6 +176,47 @@ function normalizeCommandEntries(entries) {
   return entries.filter((e) => typeof e === 'string' && e.trim()).map((e) => e.trim().replace(/\s+/g, ' '));
 }
 
+// Interpreters that can run arbitrary code from their own arguments.
+const INTERPRETERS = new Set(['node', 'deno', 'bun', 'python', 'python3', 'py', 'ruby', 'perl', 'php']);
+const EVAL_FLAGS = new Set(['-e', '--eval', '-c', '-p', '--print', '-r', '--require', '--import', '--loader', '--input-type']);
+
+/**
+ * Returns true when a `commandPolicy.allowedPatterns` entry is acceptable. Patterns are
+ * whitespace-separated tokens: `*` matches exactly one token and a final `**` matches any
+ * remaining tokens. Rejected: a wildcard or wrapper/shell in command position (it would approve
+ * anything), `**` anywhere but last, wildcards inside the program name, and interpreter patterns
+ * whose first argument is a wildcard (for example `node *`).
+ * @param {string} pattern Whitespace-normalized pattern
+ * @returns {boolean}
+ */
+export function isValidCommandPattern(pattern) {
+  const tokens = pattern.split(' ');
+  const program = commandName(tokens[0]);
+  if (tokens[0].includes('*') || COMMAND_WRAPPERS.has(program) || DELETION_COMMANDS.has(program)) return false;
+  if (tokens.slice(0, -1).includes('**')) return false;
+  if (INTERPRETERS.has(program) && (tokens.length < 2 || tokens[1] === '*' || tokens[1] === '**')) return false;
+  return true;
+}
+
+/**
+ * Matches a normalized command line against one allowed pattern, token by token.
+ * Callers must already have applied the chaining and destructive checks; this only widens the
+ * exact-match allowlist and never overrides a denial.
+ * @param {string} pattern Whitespace-normalized, valid pattern
+ * @param {string} cmd Whitespace-normalized command line
+ * @returns {boolean}
+ */
+export function matchesCommandPattern(pattern, cmd) {
+  if (!isValidCommandPattern(pattern)) return false;
+  const patternTokens = pattern.split(' ');
+  const cmdTokens = cmd.split(' ');
+  if (INTERPRETERS.has(commandName(cmdTokens[0])) && cmdTokens.slice(1).some((t) => EVAL_FLAGS.has(t))) return false;
+  const open = patternTokens[patternTokens.length - 1] === '**';
+  const fixed = open ? patternTokens.slice(0, -1) : patternTokens;
+  if (open ? cmdTokens.length < fixed.length : cmdTokens.length !== fixed.length) return false;
+  return fixed.every((token, i) => (token === '*' ? true : token === cmdTokens[i]));
+}
+
 /**
  * Loads the project's command policy from `.agents/framework.config.json`:
  * - `commandPolicy.allowedCommands`: exact command lines allowed to run in the foreground.
@@ -177,10 +226,12 @@ function normalizeCommandEntries(entries) {
  * destructive-command checks. The config file is a control-plane asset, so changing it requires
  * user confirmation. Any missing, unreadable, or malformed config yields empty lists.
  * @param {object} payload
- * @returns {{ allowedCommands: string[], allowedBackgroundCommands: string[] }}
+ * - `commandPolicy.allowedPatterns`: token patterns (`*` = one token, trailing `**` = the rest),
+ *   for example `npm run *`. Invalid or over-broad patterns are ignored (see isValidCommandPattern).
+ * @returns {{ allowedCommands: string[], allowedBackgroundCommands: string[], allowedPatterns: string[] }}
  */
 export function loadCommandPolicy(payload) {
-  const empty = { allowedCommands: [], allowedBackgroundCommands: [] };
+  const empty = { allowedCommands: [], allowedBackgroundCommands: [], allowedPatterns: [] };
   const root = extractRawWorkspaceRoot(payload);
   if (!root) return empty;
   try {
@@ -189,6 +240,7 @@ export function loadCommandPolicy(payload) {
     return {
       allowedCommands: normalizeCommandEntries(config?.commandPolicy?.allowedCommands),
       allowedBackgroundCommands: normalizeCommandEntries(config?.commandPolicy?.allowedBackgroundCommands),
+      allowedPatterns: normalizeCommandEntries(config?.commandPolicy?.allowedPatterns).filter(isValidCommandPattern),
     };
   } catch {
     return empty;
@@ -311,8 +363,13 @@ export function evaluateCommandSafety(payload) {
     };
   }
 
-  // 6. Exact Command Profile Matching
-  if (isApprovedBackground || isApprovedProfile(commandLine, policy.allowedCommands)) {
+  // 6. Exact Command Profile Matching, then project token patterns (never reached for denied commands)
+  const normalizedCommand = commandLine.trim().replace(/\s+/g, ' ');
+  if (
+    isApprovedBackground ||
+    isApprovedProfile(commandLine, policy.allowedCommands) ||
+    policy.allowedPatterns.some((pattern) => matchesCommandPattern(pattern, normalizedCommand))
+  ) {
     return { decision: 'allow' };
   }
 

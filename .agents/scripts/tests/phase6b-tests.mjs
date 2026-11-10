@@ -1784,7 +1784,11 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
     function runValidatorIn(workspace) {
       const scriptsDir = path.join(workspace, '.agents', 'scripts');
       fs.mkdirSync(scriptsDir, { recursive: true });
-      fs.copyFileSync(path.resolve('.agents/scripts/validate-framework.mjs'), path.join(scriptsDir, 'validate-framework.mjs'));
+      fs.mkdirSync(path.join(scriptsDir, 'lib'), { recursive: true });
+      // The validator imports ecc-drift.mjs, which imports lib/rule-metadata.mjs.
+      for (const file of ['validate-framework.mjs', 'ecc-drift.mjs', 'lib/rule-metadata.mjs']) {
+        fs.copyFileSync(path.resolve('.agents/scripts', file), path.join(scriptsDir, file));
+      }
       const res = spawnSync(process.execPath, [path.join(scriptsDir, 'validate-framework.mjs')], { cwd: workspace, encoding: 'utf8' });
       return `${res.stdout}\n${res.stderr}`;
     }

@@ -3,9 +3,10 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { evaluateFileSafety, summarizePayloadForLog } from '../hooks/pre-file-safety.mjs';
-import { evaluateCommandSafety } from '../hooks/pre-tool-safety.mjs';
+import { commandName, evaluateCommandSafety } from '../hooks/pre-tool-safety.mjs';
 import { resolveDefaultArtifactDir } from '../lib/artifact-dir.mjs';
 import { readStdin, redactReason } from '../lib/hook-common.mjs';
+import { findRuleReminders, loadRuleReminders } from '../lib/rule-reminders.mjs';
 
 /**
  * Claude Code Adapter
@@ -116,6 +117,22 @@ export function toClaudePreToolOutput(result) {
 }
 
 /**
+ * Adds on-demand rule reminders (framework.config.json `ruleReminders`) to a PreToolUse output
+ * as `additionalContext`. Reminders never alter the decision; denied calls get none.
+ * @param {object|null} output Result of toClaudePreToolOutput
+ * @param {{ toolCall: object, result: { decision?: string } }} evaluated
+ * @param {string} projectDir
+ * @returns {object|null}
+ */
+export function withRuleReminders(output, evaluated, projectDir) {
+  if (evaluated.result?.decision === 'deny') return output;
+  const lines = findRuleReminders(evaluated.toolCall, loadRuleReminders(projectDir), projectDir);
+  if (!lines.length) return output;
+  const base = output || { hookSpecificOutput: { hookEventName: 'PreToolUse' } };
+  return { ...base, hookSpecificOutput: { ...base.hookSpecificOutput, additionalContext: `[agent-framework] ${lines.join(' ')}` } };
+}
+
+/**
  * Evaluates a Claude Code PreToolUse payload against the framework core policy.
  * @param {object} ccPayload
  * @returns {object|null} Claude Code hook output, or null to defer to Claude Code
@@ -150,9 +167,15 @@ export function evaluateClaudePreToolDecision(ccPayload) {
  */
 function logPreToolDecision(artifactDir, evaluated) {
   try {
+    const input = summarizePayloadForLog({ toolCall: evaluated.toolCall });
+    // Program name only (never arguments), so the log summary can suggest allowlist candidates.
+    const commandLine = evaluated.toolCall?.args?.CommandLine;
+    if (evaluated.toolCall?.name === 'run_command' && typeof commandLine === 'string' && commandLine.trim()) {
+      input.commandHead = commandName(commandLine.trim().split(/\s+/)[0]);
+    }
     const entry = {
       timestamp: new Date().toISOString(),
-      input: summarizePayloadForLog({ toolCall: evaluated.toolCall }),
+      input,
       decision: { decision: evaluated.result?.decision || 'allow', reason: redactReason(evaluated.result?.reason) },
     };
     fs.appendFileSync(path.join(artifactDir, 'hook-event-log.jsonl'), JSON.stringify(entry) + '\n', 'utf8');
@@ -202,7 +225,7 @@ async function main() {
     const evaluated = evaluateClaudePreToolDecision(ccPayload);
     if (evaluated) {
       logPreToolDecision(artifactDir, evaluated);
-      const output = toClaudePreToolOutput(evaluated.result);
+      const output = withRuleReminders(toClaudePreToolOutput(evaluated.result), evaluated, projectDir);
       if (output) process.stdout.write(JSON.stringify(output) + '\n');
     }
     process.exit(0);

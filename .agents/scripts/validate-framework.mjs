@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { buildDriftReport } from './ecc-drift.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -227,6 +228,19 @@ if (fs.existsSync(pluginsReadmePath)) {
     reportPass('Plugins', `Every plugin directory listed in plugins/README.md exists (${listedPlugins.length} listed)`);
   } else {
     reportFail('Plugins', `plugins/README.md lists directories that do not exist: ${missingPlugins.join(', ')}`);
+  }
+}
+
+// 4c. Verify ECC source stamps agree with THIRD_PARTY_NOTICES.md (full body comparison: ecc-drift.mjs)
+console.log(`\n=== 4c. Validating ECC Source Stamps ===`);
+{
+  const driftReport = buildDriftReport(rootDir, null);
+  if (driftReport.expectedVersion === null) {
+    reportFail('ECC', 'THIRD_PARTY_NOTICES.md does not record an ecc-universal version');
+  } else if (driftReport.mismatched.length === 0) {
+    reportPass('ECC', `All ${driftReport.stamped} stamped rules and workflows match ecc-universal@${driftReport.expectedVersion}`);
+  } else {
+    reportFail('ECC', `${driftReport.mismatched.length} stamped file(s) differ from ecc-universal@${driftReport.expectedVersion}: ${driftReport.mismatched.map((m) => m.file).join(', ')}`);
   }
 }
 

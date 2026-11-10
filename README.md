@@ -141,9 +141,13 @@ With the Claude Code adapter, every governed tool call is also recorded (tool, t
 node .agents/scripts/summarize-hook-logs.mjs
 ```
 
-Add `--json` for machine-readable output, or `--artifactDir <dir>` to read a specific directory.
+Add `--json` for machine-readable output, or `--artifactDir <dir>` to read a specific directory. The summary also lists programs that repeatedly needed confirmation (candidates for the allowlist) and actions that were repeatedly denied.
 
-Behavior is configured in [`.agents/framework.config.json`](.agents/framework.config.json), including expected asset counts, stop-gate scope, fingerprint exclusions, and project-specific command allowlist entries (`commandPolicy.allowedCommands`, a list of exact command lines such as `"npm run build"`). Background processes such as dev servers are denied by default and run only if the exact command is listed in `commandPolicy.allowedBackgroundCommands`. Listed commands still go through the chaining and destructive-command checks, and editing the config requires confirmation because it is a control-plane asset.
+Behavior is configured in [`.agents/framework.config.json`](.agents/framework.config.json), including expected asset counts, stop-gate scope, fingerprint exclusions, and project-specific command allowlist entries (`commandPolicy.allowedCommands`, a list of exact command lines such as `"npm run build"`). `commandPolicy.allowedPatterns` accepts token patterns such as `"npm run *"` (`*` matches exactly one token, a final `**` matches the rest); patterns that start with a wildcard, a shell or wrapper, or an interpreter followed by a wildcard are ignored, and interpreter patterns never match inline-evaluation flags such as `-e`. Background processes such as dev servers are denied by default and run only if the exact command is listed in `commandPolicy.allowedBackgroundCommands`. Listed commands and patterns still go through the chaining and destructive-command checks, and editing the config requires confirmation because it is a control-plane asset.
+
+`ruleReminders` in the same file names moments when an on-demand rule matters (for example `git commit` or edits under `docs/architecture/`). The Claude Code adapter then attaches a one-line reminder to the tool call; it never changes the allow, ask, or deny decision.
+
+Two report-only maintenance scripts: `node .agents/scripts/ecc-drift.mjs` compares the rules adapted from ECC with a local copy of the upstream package (the stamp check also runs in the validator), and `node .agents/scripts/skill-audit.mjs` reports structural problems in skill bodies.
 
 ## Using with Claude Code
 

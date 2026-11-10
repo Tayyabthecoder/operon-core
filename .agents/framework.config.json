@@ -12,8 +12,26 @@
   },
   "commandPolicy": {
     "allowedCommands": [],
-    "allowedBackgroundCommands": []
+    "allowedBackgroundCommands": [],
+    "allowedPatterns": []
   },
+  "ruleReminders": [
+    {
+      "id": "git-workflow",
+      "rule": ".agents/rules/git-workflow.md",
+      "reason": "It covers commit, merge, rebase, and push practice.",
+      "command": {
+        "program": "git",
+        "subcommands": ["commit", "merge", "rebase", "push", "cherry-pick"]
+      }
+    },
+    {
+      "id": "architecture",
+      "rule": ".agents/rules/architecture.md",
+      "reason": "It covers module boundaries, dependencies, and integrations.",
+      "pathGlobs": ["docs/architecture/**", "**/adr/**", "**/architecture-decisions/**"]
+    }
+  ],
   "fingerprint": {
     "additionalExclusions": []
   },

@@ -20,6 +20,8 @@ import { redactReason } from './lib/hook-common.mjs';
  */
 
 const TOP_REASON_LIMIT = 10;
+// A program or reason seen this many times is worth a human look.
+const REPEAT_THRESHOLD = 3;
 
 /**
  * Parses JSON Lines text, skipping blank and malformed lines.
@@ -71,6 +73,29 @@ export function summarizeLogs({ hookEvents = [], stopEvents = [], postToolEvents
     }
   }
 
+  // Insights: programs that repeatedly needed confirmation (allowlist candidates) and actions that
+  // were repeatedly denied (the agent keeps retrying, or the rule is too strict for the project).
+  const askedPrograms = {};
+  const deniedReasons = {};
+  for (const event of hookEvents) {
+    const decision = event.decision?.decision;
+    if (decision === 'force_ask' && event.input?.tool === 'run_command' && event.input?.commandHead) {
+      increment(askedPrograms, event.input.commandHead);
+    } else if (decision === 'deny' && event.decision?.reason) {
+      increment(deniedReasons, redactReason(event.decision.reason));
+    }
+  }
+  const repeated = (counts, key) =>
+    Object.entries(counts)
+      .filter(([, count]) => count >= REPEAT_THRESHOLD)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ [key]: name, count }));
+  const insights = {
+    allowlistCandidates: repeated(askedPrograms, 'program'),
+    repeatedDenials: repeated(deniedReasons, 'reason'),
+    threshold: REPEAT_THRESHOLD,
+  };
+
   const stopOutcomes = {};
   for (const event of stopEvents) {
     increment(stopOutcomes, event.output?.decision === 'continue' ? 'blocked (continue)' : 'allowed');
@@ -88,6 +113,7 @@ export function summarizeLogs({ hookEvents = [], stopEvents = [], postToolEvents
     preTool: { total: hookEvents.length, decisions, byTool, topReasons, range: timeRange(hookEvents) },
     stopGate: { total: stopEvents.length, outcomes: stopOutcomes, range: timeRange(stopEvents) },
     postTool: { total: postToolEvents.length, byTool: postToolByTool, range: timeRange(postToolEvents) },
+    insights,
   };
 }
 
@@ -123,6 +149,16 @@ export function formatSummary(summary, meta = {}) {
 
   lines.push('', `Completed tool calls: ${postTool.total}`);
   for (const [tool, count] of Object.entries(postTool.byTool)) lines.push(`  ${tool}: ${count}`);
+
+  const { insights } = summary;
+  if (insights?.allowlistCandidates.length) {
+    lines.push('', `Allowlist candidates (confirmation requested ${insights.threshold}+ times; consider commandPolicy.allowedPatterns):`);
+    for (const { program, count } of insights.allowlistCandidates) lines.push(`  ${count} x ${program}`);
+  }
+  if (insights?.repeatedDenials.length) {
+    lines.push('', `Repeated denials (${insights.threshold}+ times; the agent keeps retrying, or the rule is too strict for this project):`);
+    for (const { reason, count } of insights.repeatedDenials) lines.push(`  ${count} x ${reason}`);
+  }
 
   if (meta.missing?.length) lines.push('', `Missing log files (nothing recorded yet): ${meta.missing.join(', ')}`);
   if (meta.malformed) lines.push('', `Skipped ${meta.malformed} malformed log line(s).`);

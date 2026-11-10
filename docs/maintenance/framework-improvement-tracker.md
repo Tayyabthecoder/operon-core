@@ -33,6 +33,31 @@ Tracks improvements to operon-core identified in the framework analysis of 2026-
 | P3-3 | Audit context cost of 126 rules and 81 skills and confirm language rules load only when their globs match in Claude Code | `.agents/scripts/context-cost.mjs`, `.agents/scripts/lib/rule-metadata.mjs`, `.agents/scripts/adapters/setup-claude-code.mjs`, 8 rules in `.agents/rules/`, `AGENTS.md`, `README.md`, `docs/maintenance/context-cost-audit.md` | Done | Measured with a repeatable script. Finding: 13 `model_decision` rules (~47,000 estimated tokens) loaded at session start in Claude Code. Fixed with options A and B: 8 rules got `paths:`, 4 rules are now on-demand and linked from `AGENTS.md`, `security.md` stays `always_on` by user decision, and `.claude/rules` is generated instead of linked (session-start rules: 15 to 3, ~51,200 to ~7,800 estimated tokens). Two conditional loads observed (`documentation.md`, `testing.md`); other patterns and agent behavior not verified. See [context-cost-audit.md](context-cost-audit.md) |
 | P3-4 | Add a CI workflow that runs the framework validator and the test suite | `.github/workflows/ci.yml`, `README.md` | In progress | Workflow written for Ubuntu and Windows. It has not run on GitHub, so it is unverified. Some tests and validator checks use Windows paths and may fail on Ubuntu |
 
+## R1: Roadmap Part 1 (2026-11-11)
+
+Work from `framework-roadmap.md` (a local, git-ignored file at the repository root), Part 1. `R1-n` matches the roadmap IDs.
+
+| ID | Task | Primary files | Status | Verification |
+|---|---|---|---|---|
+| R1-1 | Run CI on GitHub; fix Windows-path assumptions | `.github/workflows/ci.yml` | Blocked | Not run. Pushing to GitHub is outward-facing and was not approved, and WSL is not installed for a local Linux run. A static scan found Windows-specific tests (junctions, UNC and drive-letter paths) that may behave differently on Ubuntu; nothing was changed |
+| R1-2 | Table-driven test of every rule's `paths:` globs | `.agents/scripts/lib/glob-match.mjs`, `.agents/scripts/lib/rule-metadata.mjs` (`rulePaths`), `.agents/scripts/tests/rule-globs.test.mjs` | Done | 13 tests pass: all 8 domain rules match their load samples and not their skip samples, and all 119 conditional rules have well-formed, brace-free globs. Tests the framework's own matcher, an approximation of Claude Code's; real loading is still only observed for `documentation.md` and `testing.md` |
+| R1-3 | Reminder to read on-demand rules at the right moment | `.agents/scripts/lib/rule-reminders.mjs`, `.agents/scripts/adapters/claude-code.mjs`, `.agents/framework.config.json` (`ruleReminders`), `README.md` | Done | 5 tests pass: `git commit/merge/rebase/push/cherry-pick` and edits under `docs/architecture/` produce a reminder; the allow, ask, or deny decision is unchanged and denied calls get none. Unverified: whether Claude Code surfaces PreToolUse `additionalContext` to the model; check by committing in a live session |
+| R1-4 | Measure rule and skill effect with `skill-comply` | `ECC-framework/skills/skill-comply/` | Blocked | Not run: needs approval for token cost and `uv` (same as P3-2) |
+| R1-5 | Structured command matcher | `.agents/scripts/hooks/pre-tool-safety.mjs`, `.agents/framework.config.json` (`commandPolicy.allowedPatterns`), `README.md` | Done | 6 tests pass: `*` is one token, trailing `**` is the rest, over-broad patterns are ignored, interpreter patterns never match `-e` style flags, chaining and destructive checks still win, and `find -delete`, `find -exec rm`, `rimraf`, `shred`, `unlink` are now denied |
+| R1-6 | Log summary insights | `.agents/scripts/summarize-hook-logs.mjs`, `.agents/scripts/adapters/claude-code.mjs` (logs the program name only), `README.md` | Done | 3 tests pass. Reports programs asked about 3+ times (allowlist candidates) and identical denials repeated 3+ times. Changed from the roadmap wording: a denial cannot be overridden by the user, so "denials later overridden" is not measurable and was not built. Not wired into the Stop hook or a schedule |
+| R1-7 | ECC drift report and stamp check | `.agents/scripts/ecc-drift.mjs`, `.agents/scripts/validate-framework.mjs` (section 4c), `.agents/scripts/tests/phase6b-tests.mjs` (validator test helper copies the new modules) | Done | 4 tests pass. Validator confirms all 120 stamped rules and workflows match `ecc-universal@2.2.3`. Against the local `ECC-framework/` copy: 105 rules unchanged, 6 differ by one line (`angular-security`, `react-hooks`, `react-native-security`, `react-native-testing`, `react-testing`, `typescript-security`), none missing upstream. The upstream copy is git-ignored, so the body comparison runs only where it exists. The differing lines were not reviewed |
+| R1-8 | Skill body audit | `.agents/scripts/skill-audit.mjs`, `README.md` | Done in part | 3 tests pass. Structural audit only; no skill was edited. Findings below |
+
+**R1-8 findings (81 skills, ~341,000 estimated tokens, median 21,959 bytes, none over 30,000):**
+
+- 20 skill descriptions lack "Use when", which weakens skill selection: `cpp-review`, `csharp-review`, `django-review`, `fastapi-review`, `flutter-review`, `fsharp-review`, `go-review`, `harmonyos-app-build-fix`, `java-review`, `kotlin-review`, `php-review`, `production-quality-builder`, `python-review`, `react-build-fix`, `react-review`, `rust-review`, `short-commit`, `swift-review`, `typescript-review`, `vue-review`. Most are the ECC-adapted review skills; `production-quality-builder` and `short-commit` are user skills and were left alone.
+- 53 skills have no "When to Use" style heading and 54 have no "When NOT to Use" guidance; many are the ECC-adapted review and build-fix skills, which use a different layout.
+- 13 skills have no workflow/steps section (mostly the language `*-review` skills).
+- 10 descriptions exceed 500 characters, which adds to session-start cost.
+- 16 skills carry the same "Framework binding" blockquote and 11 the same "complementary skills" line; this is small, intentional boilerplate.
+- The 5 TODO/TBD hits are advice text (for example "label it `TBD`"), not unfinished content. No empty sections.
+- Not assessed: whether the advice is correct or changes agent behavior (that is R1-4).
+
 ## Verification Log
 
 | Date | Check | Result |
@@ -47,8 +72,15 @@ Tracks improvements to operon-core identified in the framework analysis of 2026-
 | 2026-11-10 | `setup-claude-code.mjs` then `--check`, `context-cost.mjs`, validator, and `verify-runner.mjs --profile node-test` (after `security.md` set to `always_on`) | Setup generated 1 and regenerated 22 rule files; `--check` complete; session-start rules 3 (~7,776 estimated tokens); validator 185 checks, 0 errors; 115 tests across both files: 113 pass, 0 fail, 2 skipped; clean execution |
 | 2026-11-10 | `setup-claude-code.mjs` then `--check`, `node .agents/scripts/context-cost.mjs`, validator, and `verify-runner.mjs --profile node-test` (after context-cost options A and B) | Setup replaced the `.claude/rules` link and generated 121 rule files; `--check` complete; session-start rules 2 (~3,834 estimated tokens); validator 185 checks, 0 errors; 115 tests across both files: 113 pass, 0 fail, 2 skipped; clean execution |
 | 2026-11-10 | `setup-claude-code.mjs`, then `verify-runner.mjs --profile node-test` (after P2-4 model mapping) | `.claude/agents/` shows opus for 4 agents and sonnet for 2; 102 tests: 100 pass, 0 fail, 2 skipped |
+| 2026-11-11 | `verify-runner.mjs --profile framework-validator` (before Part 1 changes) | 185 checks, 0 errors; exit 0; clean execution |
+| 2026-11-11 | `verify-runner.mjs --profile framework-validator` (after Part 1 changes) | 186 checks, 0 errors (new 4c ECC stamp check; 1643 links resolved); exit 0; clean execution |
+| 2026-11-11 | `verify-runner.mjs --profile node-test -- .agents/scripts/tests/*.mjs` (after R1-2, R1-3, R1-5 to R1-8) | 149 tests across four files: 147 pass, 0 fail, 2 skipped (Windows symlink privilege); clean execution |
 
 ## Known Limitations of Completed Work
+
+- R1-5 patterns match whole tokens only; a program path containing spaces is not tokenized correctly (the same limit applies to the existing command checks).
+- R1-3 reminders repeat on every matching call; they are not deduplicated per session.
+- R1-6 insights use the program name only (arguments are never logged), so a candidate says "npm", not which `npm` command.
 
 - P1-3 allowlist entries are exact command lines. Argument-pattern matching (for example any `npm run <script>`) is not implemented.
 - P2-3 background entries are exact command lines and apply to `run_in_background` calls from the Claude Code adapter. A background command is not automatically allowed in the foreground; list it in `allowedCommands` too if needed.
