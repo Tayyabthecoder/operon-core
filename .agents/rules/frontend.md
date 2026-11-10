@@ -1,6 +1,14 @@
 ---
 trigger: model_decision
 description: Apply frontend engineering standards when designing, implementing, reviewing, or refactoring UI components, pages, layouts, styling, forms, navigation, client-side state, accessibility, and frontend performance.
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.vue"
+  - "**/*.svelte"
+  - "**/*.html"
+  - "**/*.css"
+  - "**/*.scss"
 ---
 
 # Frontend Engineering and User Interface Standards

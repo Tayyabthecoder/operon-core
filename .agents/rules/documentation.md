@@ -1,6 +1,10 @@
 ---
 trigger: model_decision
 description: Apply documentation standards when creating, updating, reviewing, or restructuring project requirements, PRDs, SRS documents, architecture records, database documentation, API specifications, testing guides, setup instructions, and developer documentation.
+paths:
+  - "docs/**"
+  - "**/README.md"
+  - "**/CHANGELOG.md"
 ---
 
 # Technical Documentation Standards and Lifecycle Management

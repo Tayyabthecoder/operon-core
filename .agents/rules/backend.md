@@ -1,6 +1,12 @@
 ---
 trigger: model_decision
 description: Apply backend engineering standards when implementing or reviewing server-side business logic, request handlers, middleware, APIs, validation, authorization, asynchronous operations, error handling, and external integrations.
+paths:
+  - "**/routes/**"
+  - "**/controllers/**"
+  - "**/services/**"
+  - "**/middleware/**"
+  - "**/repositories/**"
 ---
 
 # Backend Engineering and Server-Side Operational Standards

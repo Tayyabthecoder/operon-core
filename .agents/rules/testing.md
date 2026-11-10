@@ -1,6 +1,14 @@
 ---
 trigger: model_decision
 description: Apply testing and quality assurance standards when implementing, modifying, debugging, refactoring, or reviewing software, including unit, integration, end-to-end, regression, contract, and relevant security tests.
+paths:
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/tests/**"
+  - "**/test/**"
+  - "**/__tests__/**"
+  - "**/*_test.go"
+  - "**/test_*.py"
 ---
 
 # Testing and Quality Assurance Standards

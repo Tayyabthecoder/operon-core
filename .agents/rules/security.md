@@ -1,5 +1,5 @@
 ---
-trigger: model_decision
+trigger: always_on
 description: Apply secure coding practices when implementing, modifying, reviewing, or testing authentication, authorization, input validation, data access, APIs, sessions, file uploads, secrets, external integrations, and security-sensitive application features.
 ---
 

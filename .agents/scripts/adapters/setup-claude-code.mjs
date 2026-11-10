@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { claudeCodeRuleLoading } from '../lib/rule-metadata.mjs';
 
 /**
  * Claude Code Setup
@@ -11,7 +12,10 @@ import { fileURLToPath } from 'node:url';
  *
  *   .claude/skills    -> .agents/skills      (junction on Windows, symlink elsewhere)
  *   .claude/commands  -> .agents/workflows
- *   .claude/rules     -> .agents/rules
+ *   .claude/rules/    generated copies of .agents/rules/*.md, except rules declared
+ *                     `trigger: model_decision` without `paths:`. Claude Code loads every file in
+ *                     .claude/rules at session start (or when `paths:` match), so on-demand rules
+ *                     stay out and are reached through the link list in AGENTS.md instead.
  *   .claude/agents/   generated from .agents/agents/*.md with Claude Code tool and model names
  *   .claude/settings.json  copied from claude-code.settings.example.json when absent
  *   CLAUDE.md         created with `@AGENTS.md` when absent
@@ -41,8 +45,41 @@ export const DEFAULT_MODEL_MAP = { pro: 'inherit', flash: 'inherit' };
 const LINKS = [
   { link: '.claude/skills', target: '.agents/skills' },
   { link: '.claude/commands', target: '.agents/workflows' },
-  { link: '.claude/rules', target: '.agents/rules' },
 ];
+
+/**
+ * Converts a framework rule into the copy placed in `.claude/rules`. Relative links to rules that
+ * are not copied (on-demand rules) are rewritten to point back at `.agents/rules`.
+ * @param {string} source Framework rule Markdown
+ * @param {string} sourceRel Source path for the generated-file marker
+ * @param {string[]} onDemandNames File names of rules that are not copied
+ * @returns {string}
+ */
+export function toClaudeRule(source, sourceRel, onDemandNames = []) {
+  let text = source.replace(/^﻿/, '');
+  for (const name of onDemandNames) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    text = text.replace(new RegExp(`\\]\\((?:\\./)?${escaped}(#[^)]*)?\\)`, 'g'), (_m, anchor) => `](../../.agents/rules/${name}${anchor || ''})`);
+  }
+  const marker = `${GENERATED_MARKER} from ${sourceRel}; edit the source, not this file. -->`;
+  const fm = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  if (!fm) return `${marker}\n\n${text}`;
+  return `${fm[0]}${marker}\n\n${text.slice(fm[0].length).replace(/^\s+/, '')}`;
+}
+
+function isDirectoryLink(p) {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/** Removes a directory link (Windows junction or symlink) without touching its target. */
+function removeDirectoryLink(p) {
+  if (process.platform === 'win32') fs.rmdirSync(p);
+  else fs.unlinkSync(p);
+}
 
 /**
  * Converts a framework subagent definition into a Claude Code subagent file.
@@ -148,6 +185,71 @@ export function setupClaudeCode(root, options = {}) {
       if (process.platform === 'win32') fs.symlinkSync(targetPath, linkPath, 'junction');
       else fs.symlinkSync(path.relative(path.dirname(linkPath), targetPath), linkPath, 'dir');
       actions.push(`Linked ${link} -> ${target}`);
+    }
+  }
+
+  // 1b. Generated rules
+  const rulesOut = abs('.claude/rules');
+  const rulesSource = abs('.agents/rules');
+  let rulesBlockedByLink = false;
+  if (!fs.existsSync(rulesSource)) {
+    problems.push('No .agents/rules folder; no rules were generated into .claude/rules.');
+  } else {
+    // The earlier wiring linked the whole folder, which exposed on-demand rules at session start.
+    if (isDirectoryLink(rulesOut) && linkPointsTo(rulesOut, rulesSource)) {
+      if (check) {
+        rulesBlockedByLink = true;
+        problems.push('.claude/rules is still a link to .agents/rules and loads on-demand rules at session start; rerun without --check to replace it with generated rules.');
+      } else {
+        removeDirectoryLink(rulesOut);
+        actions.push('Replaced the .claude/rules link with generated rules');
+      }
+    }
+
+    if (!rulesBlockedByLink) {
+      const ruleFiles = fs.readdirSync(rulesSource).filter((f) => f.endsWith('.md')).sort();
+      const sourceTexts = new Map(ruleFiles.map((f) => [f, fs.readFileSync(path.join(rulesSource, f), 'utf8')]));
+      const onDemandNames = ruleFiles.filter((f) => claudeCodeRuleLoading(sourceTexts.get(f)) === 'on-demand');
+      const wantedRules = new Map(
+        ruleFiles
+          .filter((f) => !onDemandNames.includes(f))
+          .map((f) => [f, toClaudeRule(sourceTexts.get(f), `.agents/rules/${f}`, onDemandNames)])
+      );
+
+      if (!check) fs.mkdirSync(rulesOut, { recursive: true });
+      let generated = 0;
+      let regenerated = 0;
+      let removed = 0;
+      for (const [file, wanted] of wantedRules) {
+        const outPath = path.join(rulesOut, file);
+        const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : null;
+        if (current === wanted) continue;
+        if (current !== null && !current.includes(GENERATED_MARKER)) {
+          problems.push(`.claude/rules/${file} was not generated by this script; leaving it unchanged.`);
+        } else if (check) {
+          problems.push(`.claude/rules/${file} is ${current === null ? 'missing' : 'out of date'}.`);
+        } else {
+          fs.writeFileSync(outPath, wanted, 'utf8');
+          if (current === null) generated++;
+          else regenerated++;
+        }
+      }
+
+      // Generated copies of rules that became on-demand or were deleted must not keep loading.
+      if (fs.existsSync(rulesOut)) {
+        for (const file of fs.readdirSync(rulesOut).filter((f) => f.endsWith('.md') && !wantedRules.has(f))) {
+          const outPath = path.join(rulesOut, file);
+          if (!fs.readFileSync(outPath, 'utf8').includes(GENERATED_MARKER)) continue;
+          if (check) problems.push(`.claude/rules/${file} is stale (no longer loaded at session start); rerun without --check to remove it.`);
+          else {
+            fs.unlinkSync(outPath);
+            removed++;
+          }
+        }
+      }
+      if (generated) actions.push(`Generated ${generated} rule file(s) in .claude/rules`);
+      if (regenerated) actions.push(`Regenerated ${regenerated} rule file(s) in .claude/rules`);
+      if (removed) actions.push(`Removed ${removed} stale rule file(s) from .claude/rules`);
     }
   }
 

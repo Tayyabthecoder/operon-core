@@ -1,6 +1,12 @@
 ---
 trigger: model_decision
 description: Apply accessibility and inclusive design standards when implementing, reviewing, or testing UI components, forms, navigation, dialogs, interactive controls, dynamic content, responsive layouts, multimedia, and assistive technology support.
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.vue"
+  - "**/*.svelte"
+  - "**/*.html"
 ---
 
 # Accessibility and Inclusive Design Standards

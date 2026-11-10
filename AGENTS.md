@@ -25,3 +25,14 @@ This repository follows a structured organization for AI-assisted engineering an
 
 @[Core Development Workflow](.agents/rules/core-workflow.md)
 @[Change Safety and Risk Prevention](.agents/rules/change-safety.md)
+
+## On-Demand Rules
+
+These rules are not loaded automatically in Claude Code (they are declared `trigger: model_decision` without file patterns). Read the relevant one before starting the matching kind of work:
+
+- [Architecture](.agents/rules/architecture.md): designing or refactoring modules, dependencies, system boundaries, and integrations.
+- [Coding Standards](.agents/rules/coding-standards.md): naming, readability, error handling, abstraction, and code quality when writing or reviewing code.
+- [Git Workflow](.agents/rules/git-workflow.md): inspecting Git status, committing, branching, resolving conflicts, and collaborating through remotes.
+- [Performance Optimization](.agents/rules/performance-optimization.md): profiling, benchmarking, and optimizing rendering, queries, APIs, memory, and builds.
+
+Rules for frontend, accessibility, backend, API design, database, deployment, testing, documentation, and each language load automatically when matching files are touched.

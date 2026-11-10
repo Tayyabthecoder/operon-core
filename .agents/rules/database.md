@@ -1,6 +1,10 @@
 ---
 trigger: model_decision
 description: Apply database engineering standards when designing schemas, relationships, queries, migrations, transactions, indexes, data access layers, database integrations, and data integrity constraints.
+paths:
+  - "**/*.sql"
+  - "**/*.prisma"
+  - "**/migrations/**"
 ---
 
 # Database Engineering Standards and Data Integrity
