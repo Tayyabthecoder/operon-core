@@ -15,6 +15,8 @@ Welcome to the project documentation repository. This directory serves as the ce
 | [`api/`](api/) | API endpoint contracts, OpenAPI specifications, request/response schemas, and integration guides. | [API Guide](api/README.md) | [API Spec Template](../.agents/templates/api/api-spec-template.md) |
 | [`testing/`](testing/) | Test plans, quality assurance strategies, verification matrices, and test environment setups. | [Testing Guide](testing/README.md) | [Test Plan Template](../.agents/templates/testing/test-plan-template.md) |
 | [`deployment/`](deployment/) | Deployment runbooks, environment variable requirements, release checklists, and rollback plans. | [Deployment Guide](deployment/README.md) | [Deployment Runbook Template](../.agents/templates/deployment/deployment-runbook-template.md) |
+| [`design/`](design/) | Design tokens, component specifications, style guides, and accessibility conventions. | [Design Guide](design/README.md) | None yet |
+| [`maintenance/`](maintenance/) | Runbooks, troubleshooting guides, operational procedures, and the [Framework Improvement Tracker](maintenance/framework-improvement-tracker.md). | [Maintenance Guide](maintenance/README.md) | [Deployment Runbook Template](../.agents/templates/deployment/deployment-runbook-template.md) |
 
 ---
 

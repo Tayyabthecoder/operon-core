@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { extractCanonicalWorkspaceRoot, extractRawWorkspaceRoot, readStdin } from '../lib/hook-common.mjs';
+
+export { extractCanonicalWorkspaceRoot };
 
 /**
  * Pre-Tool Safety Hook: Command Execution Safety & Allowlist Gate
@@ -11,26 +13,6 @@ import { fileURLToPath } from 'node:url';
  * IsDaemon, WaitMsBeforeAsync, toolSummary), shell chaining rejection, and
  * canonical workspace root anchoring.
  */
-
-/**
- * Reads all content from stdin as a string.
- * @returns {Promise<string>}
- */
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      resolve(data);
-    });
-    process.stdin.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
 
 /**
  * Checks if command contains forbidden shell chaining, redirection, or metacharacters.
@@ -55,16 +37,54 @@ export function checkShellMetacharacters(cmd) {
   return null;
 }
 
+const DELETION_COMMANDS = new Set(['rm', 'del', 'rmdir', 'remove-item', 'ri', 'rd', 'erase']);
+
+// Launchers whose arguments are themselves a command line (for example `cmd /c del x`).
+const COMMAND_WRAPPERS = new Set(['cmd', 'powershell', 'pwsh', 'sh', 'bash', 'zsh', 'sudo', 'env', 'xargs', 'start', 'call', 'command', 'nice', 'nohup', 'exec']);
+
+/**
+ * Normalizes a command token to a lowercase program name without quotes, directory, or extension.
+ * @param {string} token
+ * @returns {string}
+ */
+function commandName(token) {
+  const unquoted = token.replace(/^["']+|["']+$/g, '');
+  const base = unquoted.split(/[\\/]/).pop().toLowerCase();
+  return base.replace(/\.(exe|cmd|bat|com)$/, '');
+}
+
+/**
+ * Detects a deletion command in command position (the program itself, or an argument of a
+ * command wrapper such as `cmd /c`). Matching tokens rather than substrings avoids denying
+ * harmless commands whose arguments merely contain a word like "del" or "rm".
+ * @param {string} cmd
+ * @returns {boolean}
+ */
+function invokesDeletionCommand(cmd) {
+  const tokens = cmd.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+  const first = commandName(tokens[0]);
+  if (DELETION_COMMANDS.has(first)) return true;
+  if (COMMAND_WRAPPERS.has(first)) {
+    return tokens.slice(1).some((token) => DELETION_COMMANDS.has(commandName(token)));
+  }
+  return false;
+}
+
 /**
  * Checks if command contains explicitly forbidden destructive operations.
  * @param {string} cmd
  * @returns {string|null} Rejection reason or null if safe
  */
 export function checkDestructiveCommands(cmd) {
+  if (invokesDeletionCommand(cmd)) {
+    return 'Direct filesystem deletion commands are strictly prohibited';
+  }
+
   const destructivePatterns = [
     {
-      pattern: /\b(rm|del|rmdir|Remove-Item|ri|rd|erase)\b/i,
-      reason: 'Direct filesystem deletion commands are strictly prohibited',
+      pattern: /\bgit\s+rm\b/i,
+      reason: 'Direct filesystem deletion commands (git rm) are strictly prohibited',
     },
     {
       pattern: /\bgit\s+reset\b.*\s--hard(?=\s|$)/i,
@@ -108,9 +128,11 @@ export function checkDestructiveCommands(cmd) {
  * @param {string} cmd
  * @returns {boolean}
  */
-export function isApprovedProfile(cmd) {
+export function isApprovedProfile(cmd, extraAllowed = []) {
   if (typeof cmd !== 'string') return false;
   const normalized = cmd.trim().replace(/\s+/g, ' ');
+
+  if (extraAllowed.includes(normalized)) return true;
 
   const exactAllowlist = [
     'node .agents/scripts/validate-framework.mjs',
@@ -126,6 +148,7 @@ export function isApprovedProfile(cmd) {
     'git status',
     'git diff',
     'git diff --cached',
+    'git diff --staged',
     'git log',
     'git log -n 5',
     'git branch',
@@ -140,71 +163,35 @@ export function isApprovedProfile(cmd) {
   return exactAllowlist.includes(normalized);
 }
 
+function normalizeCommandEntries(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((e) => typeof e === 'string' && e.trim()).map((e) => e.trim().replace(/\s+/g, ' '));
+}
+
 /**
- * Extracts and canonicalizes the workspace root strictly from the hook payload.
- * Rejects relative paths before resolve, rejects remote URI authorities,
- * disambiguates multi-root payloads, and ensures the target is an existing directory.
+ * Loads the project's command policy from `.agents/framework.config.json`:
+ * - `commandPolicy.allowedCommands`: exact command lines allowed to run in the foreground.
+ * - `commandPolicy.allowedBackgroundCommands`: exact command lines allowed to run as
+ *   background/daemon processes (for example a dev server).
+ * Entries are matched after whitespace normalization and still pass through the chaining and
+ * destructive-command checks. The config file is a control-plane asset, so changing it requires
+ * user confirmation. Any missing, unreadable, or malformed config yields empty lists.
  * @param {object} payload
- * @returns {string|null} Canonical lowercased workspace root, or null if unestablished
+ * @returns {{ allowedCommands: string[], allowedBackgroundCommands: string[] }}
  */
-export function extractCanonicalWorkspaceRoot(payload) {
-  if (!payload || typeof payload !== 'object') return null;
-
-  let candidateRaw = null;
-
-  const paths = Array.isArray(payload.workspacePaths)
-    ? payload.workspacePaths.filter((p) => typeof p === 'string' && p.trim().length > 0)
-    : [];
-
-  if (paths.length === 1) {
-    candidateRaw = paths[0].trim();
-  } else if (paths.length > 1) {
-    if (typeof payload.workspaceRoot === 'string' && payload.workspaceRoot.trim().length > 0) {
-      candidateRaw = payload.workspaceRoot.trim();
-    } else {
-      return null;
-    }
-  } else if (typeof payload.workspaceRoot === 'string' && payload.workspaceRoot.trim().length > 0) {
-    candidateRaw = payload.workspaceRoot.trim();
-  }
-
-  if (!candidateRaw) {
-    return null;
-  }
-
-  if (/^file:/i.test(candidateRaw)) {
-    try {
-      const parsedUrl = new URL(candidateRaw);
-      if (parsedUrl.host && parsedUrl.host !== 'localhost') {
-        return null;
-      }
-      candidateRaw = fileURLToPath(parsedUrl);
-    } catch {
-      return null;
-    }
-  }
-
-  if (!path.isAbsolute(candidateRaw)) {
-    return null;
-  }
-
+export function loadCommandPolicy(payload) {
+  const empty = { allowedCommands: [], allowedBackgroundCommands: [] };
+  const root = extractRawWorkspaceRoot(payload);
+  if (!root) return empty;
   try {
-    if (!fs.existsSync(candidateRaw)) {
-      return null;
-    }
-    const stat = fs.statSync(candidateRaw);
-    if (!stat.isDirectory()) {
-      return null;
-    }
-
-    const realRoot = fs.realpathSync.native(candidateRaw);
-    const realStat = fs.statSync(realRoot);
-    if (!realStat.isDirectory()) {
-      return null;
-    }
-    return path.normalize(realRoot).toLowerCase();
+    const configPath = path.join(root, '.agents', 'framework.config.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^﻿/, ''));
+    return {
+      allowedCommands: normalizeCommandEntries(config?.commandPolicy?.allowedCommands),
+      allowedBackgroundCommands: normalizeCommandEntries(config?.commandPolicy?.allowedBackgroundCommands),
+    };
   } catch {
-    return null;
+    return empty;
   }
 }
 
@@ -287,12 +274,22 @@ export function evaluateCommandSafety(payload) {
   }
 
   // 3e. IsDaemon
+  const policy = loadCommandPolicy(payload);
+  let isApprovedBackground = false;
   if (args.IsDaemon !== undefined) {
     if (typeof args.IsDaemon !== 'boolean') {
       return { decision: 'deny', reason: 'Invalid IsDaemon argument (must be a boolean).' };
     }
     if (args.IsDaemon === true) {
-      return { decision: 'deny', reason: 'Daemon/background execution (IsDaemon: true) is strictly prohibited for verification commands.' };
+      // Background execution is denied unless the exact command line is listed by the project
+      // in commandPolicy.allowedBackgroundCommands.
+      isApprovedBackground = policy.allowedBackgroundCommands.includes(commandLine.trim().replace(/\s+/g, ' '));
+      if (!isApprovedBackground) {
+        return {
+          decision: 'deny',
+          reason: 'Daemon/background execution (IsDaemon: true) is prohibited unless the exact command is listed in commandPolicy.allowedBackgroundCommands.',
+        };
+      }
     }
   }
 
@@ -315,7 +312,7 @@ export function evaluateCommandSafety(payload) {
   }
 
   // 6. Exact Command Profile Matching
-  if (isApprovedProfile(commandLine)) {
+  if (isApprovedBackground || isApprovedProfile(commandLine, policy.allowedCommands)) {
     return { decision: 'allow' };
   }
 

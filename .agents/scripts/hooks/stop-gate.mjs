@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { computeWorkspaceFingerprint, diffManifests } from '../lib/workspace-fingerprint.mjs';
+import { readStdin } from '../lib/hook-common.mjs';
 
 const DEFAULT_STOP_GATE_POLICY = {
   frameworkOnlyProfiles: ['framework-validator'],
@@ -42,26 +43,6 @@ function isFrameworkScopePath(relPosixPath, prefixes) {
   const normalized = relPosixPath.toLowerCase();
   if (!normalized.includes('/') && normalized.endsWith('.md')) return true;
   return prefixes.some((prefix) => normalized.startsWith(prefix.toLowerCase()));
-}
-
-/**
- * Reads all content from stdin as a string.
- * @returns {Promise<string>}
- */
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      resolve(data);
-    });
-    process.stdin.on('error', (err) => {
-      reject(err);
-    });
-  });
 }
 
 async function main() {

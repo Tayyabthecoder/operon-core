@@ -1,6 +1,15 @@
 ---
 trigger: model_decision
 description: Apply deployment and release engineering standards when configuring environments, building applications, preparing releases, managing migrations, deploying services, verifying production readiness, or recovering from deployment failures.
+paths:
+  - "**/Dockerfile*"
+  - "**/docker-compose*.yml"
+  - "**/docker-compose*.yaml"
+  - ".github/workflows/**"
+  - "**/*.tf"
+  - "**/k8s/**"
+  - "**/helm/**"
+  - "**/vercel.json"
 ---
 
 # Software Deployment, Release Engineering, and Operational Readiness Standards

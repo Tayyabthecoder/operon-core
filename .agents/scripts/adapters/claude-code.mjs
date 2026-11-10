@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { evaluateFileSafety } from '../hooks/pre-file-safety.mjs';
+import { evaluateFileSafety, summarizePayloadForLog } from '../hooks/pre-file-safety.mjs';
 import { evaluateCommandSafety } from '../hooks/pre-tool-safety.mjs';
 import { resolveDefaultArtifactDir } from '../lib/artifact-dir.mjs';
+import { readStdin, redactReason } from '../lib/hook-common.mjs';
 
 /**
  * Claude Code Adapter
@@ -24,18 +25,6 @@ import { resolveDefaultArtifactDir } from '../lib/artifact-dir.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const hooksDir = path.resolve(__dirname, '..', 'hooks');
-
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => resolve(data));
-    process.stdin.on('error', reject);
-  });
-}
 
 /**
  * Resolves the project root: CLAUDE_PROJECT_DIR, else the payload cwd.
@@ -132,13 +121,44 @@ export function toClaudePreToolOutput(result) {
  * @returns {object|null} Claude Code hook output, or null to defer to Claude Code
  */
 export function evaluateClaudePreToolUse(ccPayload) {
+  const evaluated = evaluateClaudePreToolDecision(ccPayload);
+  return evaluated ? toClaudePreToolOutput(evaluated.result) : null;
+}
+
+/**
+ * Evaluates a Claude Code PreToolUse payload and returns the translated tool call with the
+ * raw framework decision, so callers can both answer Claude Code and write an audit entry.
+ * @param {object} ccPayload
+ * @returns {{ toolCall: object, result: { decision?: string, reason?: string } }|null} null for ungoverned tools
+ */
+export function evaluateClaudePreToolDecision(ccPayload) {
   const projectDir = resolveProjectDir(ccPayload);
   const toolCall = translateToolCall(ccPayload?.tool_name, ccPayload?.tool_input, { projectDir, cwd: ccPayload?.cwd });
   if (!toolCall) return null;
 
   const frameworkPayload = { toolCall, workspacePaths: [projectDir] };
   const result = toolCall.name === 'run_command' ? evaluateCommandSafety(frameworkPayload) : evaluateFileSafety(frameworkPayload);
-  return toClaudePreToolOutput(result);
+  return { toolCall, result };
+}
+
+/**
+ * Appends a redacted audit entry (tool, target, argument key names, decision, redacted reason)
+ * to hook-event-log.jsonl. Argument values such as command lines and file contents are never
+ * recorded. Logging failures never affect the decision.
+ * @param {string} artifactDir
+ * @param {{ toolCall: object, result: { decision?: string, reason?: string } }} evaluated
+ */
+function logPreToolDecision(artifactDir, evaluated) {
+  try {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      input: summarizePayloadForLog({ toolCall: evaluated.toolCall }),
+      decision: { decision: evaluated.result?.decision || 'allow', reason: redactReason(evaluated.result?.reason) },
+    };
+    fs.appendFileSync(path.join(artifactDir, 'hook-event-log.jsonl'), JSON.stringify(entry) + '\n', 'utf8');
+  } catch {
+    // Ignore audit log write errors
+  }
 }
 
 /**
@@ -179,8 +199,12 @@ async function main() {
   fs.mkdirSync(artifactDir, { recursive: true });
 
   if (event === 'pre-tool-use') {
-    const output = evaluateClaudePreToolUse(ccPayload);
-    if (output) process.stdout.write(JSON.stringify(output) + '\n');
+    const evaluated = evaluateClaudePreToolDecision(ccPayload);
+    if (evaluated) {
+      logPreToolDecision(artifactDir, evaluated);
+      const output = toClaudePreToolOutput(evaluated.result);
+      if (output) process.stdout.write(JSON.stringify(output) + '\n');
+    }
     process.exit(0);
   }
 

@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractCanonicalWorkspaceRoot, readStdin } from '../lib/hook-common.mjs';
+
+export { extractCanonicalWorkspaceRoot };
 
 /**
  * Pre-Tool Safety Hook: Filesystem Read & Mutation Protection
@@ -15,26 +18,6 @@ import { fileURLToPath } from 'node:url';
  * platform tool opening the file (T_use). This hook provides rigorous preflight
  * containment validation, but cannot eliminate concurrent local filesystem race conditions.
  */
-
-/**
- * Reads all content from stdin as a string.
- * @returns {Promise<string>}
- */
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      resolve(data);
-    });
-    process.stdin.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
 
 /**
  * Checks if target path belongs to framework control-plane assets.
@@ -221,74 +204,6 @@ export function extractReadTargets(toolName, args) {
 
   // 4. Default: Unknown tool
   return { type: 'UNKNOWN_TARGET', reason: `Unrecognized read tool "${toolName}".` };
-}
-
-/**
- * Extracts and canonicalizes the workspace root strictly from the hook payload.
- * Rejects relative paths before resolve, rejects remote URI authorities,
- * disambiguates multi-root payloads, and ensures the target is an existing directory.
- * @param {object} payload
- * @returns {string|null} Canonical lowercased workspace root, or null if unestablished
- */
-export function extractCanonicalWorkspaceRoot(payload) {
-  if (!payload || typeof payload !== 'object') return null;
-
-  let candidateRaw = null;
-
-  const paths = Array.isArray(payload.workspacePaths)
-    ? payload.workspacePaths.filter((p) => typeof p === 'string' && p.trim().length > 0)
-    : [];
-
-  if (paths.length === 1) {
-    candidateRaw = paths[0].trim();
-  } else if (paths.length > 1) {
-    if (typeof payload.workspaceRoot === 'string' && payload.workspaceRoot.trim().length > 0) {
-      candidateRaw = payload.workspaceRoot.trim();
-    } else {
-      return null;
-    }
-  } else if (typeof payload.workspaceRoot === 'string' && payload.workspaceRoot.trim().length > 0) {
-    candidateRaw = payload.workspaceRoot.trim();
-  }
-
-  if (!candidateRaw) {
-    return null;
-  }
-
-  if (/^file:/i.test(candidateRaw)) {
-    try {
-      const parsedUrl = new URL(candidateRaw);
-      if (parsedUrl.host && parsedUrl.host !== 'localhost') {
-        return null;
-      }
-      candidateRaw = fileURLToPath(parsedUrl);
-    } catch {
-      return null;
-    }
-  }
-
-  if (!path.isAbsolute(candidateRaw)) {
-    return null;
-  }
-
-  try {
-    if (!fs.existsSync(candidateRaw)) {
-      return null;
-    }
-    const stat = fs.statSync(candidateRaw);
-    if (!stat.isDirectory()) {
-      return null;
-    }
-
-    const realRoot = fs.realpathSync.native(candidateRaw);
-    const realStat = fs.statSync(realRoot);
-    if (!realStat.isDirectory()) {
-      return null;
-    }
-    return path.normalize(realRoot).toLowerCase();
-  } catch {
-    return null;
-  }
 }
 
 /**

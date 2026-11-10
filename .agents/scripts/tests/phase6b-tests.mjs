@@ -22,7 +22,13 @@ import {
 import {
   isApprovedProfile,
   evaluateCommandSafety,
+  extractCanonicalWorkspaceRoot as extractRootFromCommandHook,
 } from '../hooks/pre-tool-safety.mjs';
+import * as hookCommon from '../lib/hook-common.mjs';
+import { parseJsonLines, summarizeLogs, formatSummary } from '../summarize-hook-logs.mjs';
+import { isConditionalRule, ruleTrigger, skillDescription, measureContextCost, formatReport } from '../context-cost.mjs';
+import { claudeCodeRuleLoading } from '../lib/rule-metadata.mjs';
+import { toClaudeRule } from '../adapters/setup-claude-code.mjs';
 
 describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
   let tempTestDir;
@@ -1089,6 +1095,29 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       assert.equal(webOut, null);
     });
 
+    test('pre-tool-use writes a redacted audit entry per governed tool call (P3-1)', async () => {
+      const ws = setupProject('auditlog');
+      const { resolveDefaultArtifactDir } = await import(pathToFileURL(path.resolve('.agents/scripts/lib/artifact-dir.mjs')).href);
+      const artifactDir = resolveDefaultArtifactDir(ws);
+      try {
+        runAdapter('pre-tool-use', { tool_name: 'Edit', tool_input: { file_path: path.join(ws, 'src', 'app.js'), new_string: 'SECRET_CONTENT_42' }, cwd: ws }, ws);
+        runAdapter('pre-tool-use', { tool_name: 'Bash', tool_input: { command: 'unknown-tool --token=SECRET_ARG_77' }, cwd: ws }, ws);
+        runAdapter('pre-tool-use', { tool_name: 'Bash', tool_input: { command: 'git clean -fdx' }, cwd: ws }, ws);
+        runAdapter('pre-tool-use', { tool_name: 'WebFetch', tool_input: { url: 'https://example.com' }, cwd: ws }, ws);
+
+        const logText = fs.readFileSync(path.join(artifactDir, 'hook-event-log.jsonl'), 'utf8');
+        const { entries, malformed } = parseJsonLines(logText);
+        assert.equal(malformed, 0);
+        assert.equal(entries.length, 3, 'ungoverned tools (WebFetch) are not logged');
+        assert.deepEqual(entries.map((e) => e.decision.decision), ['allow', 'force_ask', 'deny']);
+        assert.deepEqual(entries.map((e) => e.input.tool), ['edit_file', 'run_command', 'run_command']);
+        assert.ok(!logText.includes('SECRET_CONTENT_42'), 'file content is never logged');
+        assert.ok(!logText.includes('SECRET_ARG_77'), 'command arguments are never logged, even inside reasons');
+      } finally {
+        try { fs.rmSync(artifactDir, { recursive: true, force: true }); } catch {}
+      }
+    });
+
     test('session-start and stop enforce verification through the shared artifact directory', async () => {
       const ws = setupProject('stop');
       const { resolveDefaultArtifactDir } = await import(pathToFileURL(path.resolve('.agents/scripts/lib/artifact-dir.mjs')).href);
@@ -1159,6 +1188,119 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       assert.equal(second.status, 0);
       assert.ok(!second.stdout.includes('[DONE]'), 'rerun must change nothing');
       assert.equal(run('--check').status, 0);
+    });
+  });
+
+  // ==========================================
+  // Claude Code rule loading (context cost options A and B)
+  // ==========================================
+  describe('Claude Code Rule Loading', () => {
+    const script = path.resolve('.agents/scripts/adapters/setup-claude-code.mjs');
+    const run = (ws, ...args) => spawnSync(process.execPath, [script, '--root', ws, ...args], { encoding: 'utf8' });
+
+    function buildWorkspace(name, rules) {
+      const ws = fs.mkdtempSync(path.join(tempTestDir, `${name}-`));
+      for (const dir of ['.agents/skills/demo', '.agents/workflows', '.agents/rules', '.agents/agents', '.agents/scripts/adapters']) {
+        fs.mkdirSync(path.join(ws, dir), { recursive: true });
+      }
+      fs.writeFileSync(path.join(ws, '.agents/skills/demo/SKILL.md'), '---\nname: demo\ndescription: d\n---\n', 'utf8');
+      fs.writeFileSync(path.join(ws, '.agents/workflows/plan.md'), '---\ndescription: p\n---\n', 'utf8');
+      fs.copyFileSync(path.resolve('.agents/agents/qa-reviewer.md'), path.join(ws, '.agents/agents/qa-reviewer.md'));
+      fs.copyFileSync(
+        path.resolve('.agents/scripts/adapters/claude-code.settings.example.json'),
+        path.join(ws, '.agents/scripts/adapters/claude-code.settings.example.json')
+      );
+      fs.writeFileSync(path.join(ws, 'CLAUDE.md'), '@AGENTS.md\n', 'utf8');
+      for (const [file, text] of Object.entries(rules)) fs.writeFileSync(path.join(ws, '.agents/rules', file), text, 'utf8');
+      return ws;
+    }
+
+    const ALWAYS = '---\ntrigger: always_on\n---\n# Always\n';
+    const ONDEMAND = '---\ntrigger: model_decision\ndescription: d\n---\n# On demand\n';
+    const PY = '---\ntrigger: glob\npaths:\n  - "**/*.py"\n---\n# Py\n\nSee [on demand](./ondemand.md#part) and [always](always.md).\n';
+
+    test('claudeCodeRuleLoading separates session-start, conditional, and on-demand rules', () => {
+      assert.equal(claudeCodeRuleLoading(ALWAYS), 'session-start');
+      assert.equal(claudeCodeRuleLoading(ONDEMAND), 'on-demand');
+      assert.equal(claudeCodeRuleLoading('---\ntrigger: model_decision\npaths:\n  - "**/*.sql"\n---\n'), 'conditional');
+      assert.equal(claudeCodeRuleLoading('no frontmatter'), 'session-start');
+    });
+
+    test('the framework rules load as designed: 3 at session start, 4 on demand, all others conditional', () => {
+      const rulesDir = path.resolve('.agents/rules');
+      const byLoading = { 'session-start': [], 'on-demand': [], conditional: [] };
+      for (const file of fs.readdirSync(rulesDir).filter((f) => f.endsWith('.md'))) {
+        const text = fs.readFileSync(path.join(rulesDir, file), 'utf8');
+        byLoading[claudeCodeRuleLoading(text)].push(file);
+        if (ruleTrigger(text) === 'glob') assert.ok(isConditionalRule(text), `${file} is glob-triggered but has no paths:`);
+      }
+      assert.deepEqual(byLoading['session-start'].sort(), ['change-safety.md', 'core-workflow.md', 'security.md']);
+      assert.deepEqual(byLoading['on-demand'].sort(), ['architecture.md', 'coding-standards.md', 'git-workflow.md', 'performance-optimization.md']);
+      assert.equal(byLoading.conditional.length, 126 - 3 - 4);
+
+      // Every on-demand rule must be reachable from AGENTS.md, since Claude Code will not load it.
+      const agentsMd = fs.readFileSync(path.resolve('AGENTS.md'), 'utf8');
+      for (const file of byLoading['on-demand']) {
+        assert.ok(agentsMd.includes(`(.agents/rules/${file})`), `AGENTS.md does not link on-demand rule ${file}`);
+      }
+    });
+
+    test('toClaudeRule marks the copy as generated and redirects links to rules that are not copied', () => {
+      const out = toClaudeRule(PY, '.agents/rules/py.md', ['ondemand.md']);
+      assert.match(out, /^---\ntrigger: glob\npaths:\n {2}- "\*\*\/\*\.py"\n---\n<!-- Generated by \.agents\/scripts\/adapters\/setup-claude-code\.mjs from \.agents\/rules\/py\.md/);
+      assert.ok(out.includes('](../../.agents/rules/ondemand.md#part)'));
+      assert.ok(out.includes('](always.md)'), 'links to copied rules are left alone');
+      assert.equal(toClaudeRule(PY, '.agents/rules/py.md', ['ondemand.md']), out, 'generation is deterministic');
+      assert.ok(toClaudeRule('plain', '.agents/rules/x.md').startsWith('<!-- Generated by'));
+    });
+
+    test('setup generates .claude/rules without on-demand rules, keeps user files, and removes stale copies', () => {
+      const ws = buildWorkspace('rules-gen', { 'always.md': ALWAYS, 'ondemand.md': ONDEMAND, 'py.md': PY });
+      fs.mkdirSync(path.join(ws, '.claude/rules'), { recursive: true });
+      fs.writeFileSync(path.join(ws, '.claude/rules/mine.md'), 'my own rule', 'utf8');
+
+      const first = run(ws);
+      assert.match(first.stdout, /Generated 2 rule file\(s\) in \.claude\/rules/);
+      assert.deepEqual(fs.readdirSync(path.join(ws, '.claude/rules')).sort(), ['always.md', 'mine.md', 'py.md']);
+      assert.ok(fs.readFileSync(path.join(ws, '.claude/rules/py.md'), 'utf8').includes('](../../.agents/rules/ondemand.md#part)'));
+      assert.equal(fs.readFileSync(path.join(ws, '.claude/rules/mine.md'), 'utf8'), 'my own rule');
+      assert.equal(run(ws, '--check').status, 0);
+      assert.ok(!run(ws).stdout.includes('[DONE]'), 'rerun must change nothing');
+
+      // always.md becomes on-demand: its generated copy must stop loading, user file stays
+      fs.writeFileSync(path.join(ws, '.agents/rules/always.md'), ONDEMAND, 'utf8');
+      const stale = run(ws, '--check');
+      assert.equal(stale.status, 1);
+      assert.match(stale.stdout, /\.claude\/rules\/always\.md is stale/);
+      assert.match(run(ws).stdout, /Removed 1 stale rule file\(s\)/);
+      assert.deepEqual(fs.readdirSync(path.join(ws, '.claude/rules')).sort(), ['mine.md', 'py.md']);
+
+      // a user-owned file with a generated rule's name is reported, not overwritten
+      fs.writeFileSync(path.join(ws, '.claude/rules/py.md'), 'user version', 'utf8');
+      const conflict = run(ws);
+      assert.match(conflict.stdout, /\.claude\/rules\/py\.md was not generated by this script/);
+      assert.equal(fs.readFileSync(path.join(ws, '.claude/rules/py.md'), 'utf8'), 'user version');
+    });
+
+    test('setup replaces the old whole-folder link with generated rules and leaves .agents/rules intact', () => {
+      const ws = buildWorkspace('rules-migrate', { 'always.md': ALWAYS, 'ondemand.md': ONDEMAND });
+      fs.mkdirSync(path.join(ws, '.claude'), { recursive: true });
+      const linkPath = path.join(ws, '.claude/rules');
+      if (process.platform === 'win32') fs.symlinkSync(path.join(ws, '.agents/rules'), linkPath, 'junction');
+      else fs.symlinkSync(path.relative(path.dirname(linkPath), path.join(ws, '.agents/rules')), linkPath, 'dir');
+      assert.ok(fs.existsSync(path.join(linkPath, 'ondemand.md')), 'precondition: the link exposes the on-demand rule');
+
+      const check = run(ws, '--check');
+      assert.equal(check.status, 1);
+      assert.match(check.stdout, /\.claude\/rules is still a link to \.agents\/rules/);
+      assert.ok(fs.existsSync(path.join(ws, '.agents/rules/ondemand.md')), '--check must not modify anything');
+
+      const migrated = run(ws);
+      assert.match(migrated.stdout, /Replaced the \.claude\/rules link with generated rules/);
+      assert.equal(fs.lstatSync(linkPath).isSymbolicLink(), false);
+      assert.deepEqual(fs.readdirSync(linkPath), ['always.md']);
+      assert.deepEqual(fs.readdirSync(path.join(ws, '.agents/rules')).sort(), ['always.md', 'ondemand.md']);
+      assert.equal(fs.readFileSync(path.join(ws, '.agents/rules/always.md'), 'utf8'), ALWAYS, 'the source rule is untouched');
     });
   });
 
@@ -1308,6 +1450,91 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       assert.equal(out.decision, 'allow');
     });
 
+    test('git diff --staged is allowed alongside git diff --cached (P1-3)', () => {
+      assert.equal(executeCommandHook('git diff --staged').decision, 'allow');
+      assert.equal(executeCommandHook('git diff --cached').decision, 'allow');
+    });
+
+    test('commandPolicy.allowedCommands extends the allowlist but not the safety checks (P1-3)', () => {
+      const ws = fs.mkdtempSync(path.join(tempTestDir, 'cmd-policy-'));
+      fs.mkdirSync(path.join(ws, '.agents'), { recursive: true });
+      fs.writeFileSync(
+        path.join(ws, '.agents', 'framework.config.json'),
+        JSON.stringify({ commandPolicy: { allowedCommands: ['npm run build', 'npm run   lint', 42, '', 'rm -rf dist'] } }),
+        'utf8'
+      );
+
+      assert.equal(executeCommandHook('npm run build', {}, ws).decision, 'allow');
+      assert.equal(executeCommandHook('npm run lint', {}, ws).decision, 'allow', 'whitespace is normalized');
+      assert.equal(executeCommandHook('npm run deploy', {}, ws).decision, 'force_ask', 'unlisted commands still ask');
+      assert.equal(executeCommandHook('npm run build', {}, tempTestDir).decision, 'force_ask', 'another workspace is unaffected');
+      assert.equal(executeCommandHook('rm -rf dist', {}, ws).decision, 'deny', 'destructive commands stay denied even when listed');
+    });
+
+    test('malformed commandPolicy config falls back to the built-in allowlist (P1-3)', () => {
+      const ws = fs.mkdtempSync(path.join(tempTestDir, 'cmd-policy-bad-'));
+      fs.mkdirSync(path.join(ws, '.agents'), { recursive: true });
+      fs.writeFileSync(path.join(ws, '.agents', 'framework.config.json'), '{ not json', 'utf8');
+      assert.equal(executeCommandHook('git status', {}, ws).decision, 'allow');
+      assert.equal(executeCommandHook('npm run build', {}, ws).decision, 'force_ask');
+
+      fs.writeFileSync(path.join(ws, '.agents', 'framework.config.json'), JSON.stringify({ commandPolicy: { allowedCommands: 'npm run build' } }), 'utf8');
+      assert.equal(executeCommandHook('npm run build', {}, ws).decision, 'force_ask');
+    });
+
+    test('allowedBackgroundCommands permits only the exact listed daemon command (P2-3)', () => {
+      const ws = fs.mkdtempSync(path.join(tempTestDir, 'cmd-policy-bg-'));
+      fs.mkdirSync(path.join(ws, '.agents'), { recursive: true });
+      fs.writeFileSync(
+        path.join(ws, '.agents', 'framework.config.json'),
+        JSON.stringify({
+          commandPolicy: {
+            allowedCommands: ['npm run lint'],
+            allowedBackgroundCommands: ['npm run dev', 'npm run dev && echo done', 'rm -rf dist'],
+          },
+        }),
+        'utf8'
+      );
+      const daemon = { IsDaemon: true };
+
+      assert.equal(executeCommandHook('npm run dev', daemon, ws).decision, 'allow');
+      assert.equal(executeCommandHook('npm   run dev', daemon, ws).decision, 'allow', 'whitespace is normalized');
+
+      const unlisted = executeCommandHook('npm run build', daemon, ws);
+      assert.equal(unlisted.decision, 'deny');
+      assert.ok(unlisted.reason.includes('allowedBackgroundCommands'));
+
+      assert.equal(executeCommandHook('npm run lint', daemon, ws).decision, 'deny', 'a foreground-only entry cannot run as a daemon');
+      assert.equal(executeCommandHook('npm run dev', {}, ws).decision, 'force_ask', 'a background-only entry is not a foreground allow');
+      assert.equal(executeCommandHook('npm run dev && echo done', daemon, ws).decision, 'deny', 'chaining stays denied even when listed');
+      assert.equal(executeCommandHook('rm -rf dist', daemon, ws).decision, 'deny', 'destructive commands stay denied even when listed');
+      assert.equal(executeCommandHook('npm run dev', daemon).decision, 'deny', 'a workspace without the entry still denies daemons');
+    });
+
+    test('deletion words inside arguments are not denied, but deletion in command position is (P1-4)', () => {
+      for (const cmd of ['git log --grep=del', 'git log --grep rm', 'npm run erase-cache', 'node scripts/rd.js', 'echo remove-item']) {
+        assert.equal(executeCommandHook(cmd).decision, 'force_ask', `${cmd} should only ask`);
+      }
+      for (const cmd of ['rm -rf dist', 'RM file', 'del /q file', 'Remove-Item -Recurse x', 'rmdir /s x', '/bin/rm file', 'C:\\Windows\\System32\\cmd.exe /c del x']) {
+        assert.equal(executeCommandHook(cmd).decision, 'deny', `${cmd} should be denied`);
+      }
+    });
+
+    test('deletion hidden behind command wrappers or git rm is still denied (P1-4)', () => {
+      for (const cmd of [
+        'cmd /c del x',
+        'cmd.exe /c "del x"',
+        'powershell -Command "Remove-Item x"',
+        'pwsh -c ri x',
+        "bash -c 'rm x'",
+        'sudo rm x',
+        'xargs rm',
+        'git rm file.txt',
+      ]) {
+        assert.equal(executeCommandHook(cmd).decision, 'deny', `${cmd} should be denied`);
+      }
+    });
+
     test('exact approved verify-runner profile is allowed; alternate profiles trigger force_ask', () => {
       const out1 = executeCommandHook('node .agents/scripts/verify-runner.mjs --profile framework-validator');
       assert.equal(out1.decision, 'allow');
@@ -1412,6 +1639,184 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
         BypassSandbox: true,
       });
       assert.equal(out.decision, 'deny');
+    });
+  });
+
+  // ==========================================
+  // 11. Shared Hook Helpers (P2-1)
+  // ==========================================
+  describe('Shared Hook Helpers', () => {
+    test('both hooks reuse the single canonical workspace root implementation', () => {
+      assert.equal(extractCanonicalWorkspaceRoot, hookCommon.extractCanonicalWorkspaceRoot);
+      assert.equal(extractRootFromCommandHook, hookCommon.extractCanonicalWorkspaceRoot);
+    });
+
+    test('extractRawWorkspaceRoot selects the root without touching the filesystem', () => {
+      assert.equal(hookCommon.extractRawWorkspaceRoot(null), null);
+      assert.equal(hookCommon.extractRawWorkspaceRoot({}), null);
+      assert.equal(hookCommon.extractRawWorkspaceRoot({ workspacePaths: ['/a/b'] }), '/a/b');
+      assert.equal(hookCommon.extractRawWorkspaceRoot({ workspacePaths: ['/a', '/b'] }), null, 'multiple roots need disambiguation');
+      assert.equal(hookCommon.extractRawWorkspaceRoot({ workspacePaths: ['/a', '/b'], workspaceRoot: '/b' }), '/b');
+      assert.equal(hookCommon.extractRawWorkspaceRoot({ workspaceRoot: '/only' }), '/only');
+      assert.equal(hookCommon.extractRawWorkspaceRoot({ workspacePaths: ['file://remote-host/share'] }), null, 'remote URI authorities are rejected');
+
+      const fromUri = hookCommon.extractRawWorkspaceRoot({ workspacePaths: [pathToFileURL(tempTestDir).href] });
+      assert.equal(path.normalize(fromUri).toLowerCase(), path.normalize(tempTestDir).toLowerCase());
+    });
+  });
+
+  // ==========================================
+  // 12. Hook Log Summary (P3-1)
+  // ==========================================
+  describe('Hook Log Summary', () => {
+    const summaryScript = path.resolve('.agents/scripts/summarize-hook-logs.mjs');
+
+    const hookEvents = [
+      { timestamp: '2026-11-10T10:00:00.000Z', input: { tool: 'edit_file' }, decision: { decision: 'allow' } },
+      { timestamp: '2026-11-10T10:01:00.000Z', input: { tool: 'run_command' }, decision: { decision: 'force_ask', reason: 'Command profile not in pre-approved allowlist: "npm run build --token=ABC". Interactive confirmation required.' } },
+      { timestamp: '2026-11-10T10:02:00.000Z', input: { tool: 'run_command' }, decision: { decision: 'force_ask', reason: 'Command profile not in pre-approved allowlist: "other cmd". Interactive confirmation required.' } },
+      { timestamp: '2026-11-10T10:03:00.000Z', input: { tool: 'run_command' }, decision: { decision: 'deny', reason: 'Direct filesystem deletion commands are strictly prohibited.' } },
+    ];
+
+    test('parseJsonLines skips blank, malformed, and non-object lines', () => {
+      const { entries, malformed } = parseJsonLines('{"a":1}\n\n{broken\n[1,2]\n{"b":2}\r\n');
+      assert.deepEqual(entries, [{ a: 1 }, { b: 2 }]);
+      assert.equal(malformed, 2);
+    });
+
+    test('summarizeLogs counts decisions per tool and groups reasons with arguments redacted', () => {
+      const summary = summarizeLogs({
+        hookEvents,
+        stopEvents: [{ output: {} }, { output: { decision: 'continue' } }],
+        postToolEvents: [{ tool: 'edit_file' }, { tool: 'edit_file' }, { tool: 'run_command' }],
+      });
+
+      assert.equal(summary.preTool.total, 4);
+      assert.deepEqual(summary.preTool.decisions, { allow: 1, force_ask: 2, deny: 1 });
+      assert.deepEqual(summary.preTool.byTool.run_command, { force_ask: 2, deny: 1 });
+      assert.equal(summary.preTool.topReasons[0].count, 2, 'identical reasons collapse once the command text is redacted');
+      assert.ok(summary.preTool.topReasons[0].reason.startsWith('force_ask: Command profile not in pre-approved allowlist: "…"'));
+      assert.deepEqual(summary.preTool.range, { first: '2026-11-10T10:00:00.000Z', last: '2026-11-10T10:03:00.000Z' });
+      assert.deepEqual(summary.stopGate.outcomes, { allowed: 1, 'blocked (continue)': 1 });
+      assert.deepEqual(summary.postTool.byTool, { edit_file: 2, run_command: 1 });
+      assert.ok(!JSON.stringify(summary).includes('ABC'));
+      assert.ok(!formatSummary(summary).includes('ABC'));
+    });
+
+    test('summarizeLogs handles empty input', () => {
+      const summary = summarizeLogs({});
+      assert.equal(summary.preTool.total, 0);
+      assert.equal(summary.preTool.range, null);
+      assert.match(formatSummary(summary), /Pre-tool decisions: 0/);
+    });
+
+    test('CLI summarizes a log directory as text and JSON, and fails clearly when it is missing', () => {
+      const dir = fs.mkdtempSync(path.join(tempTestDir, 'log-summary-'));
+      fs.writeFileSync(path.join(dir, 'hook-event-log.jsonl'), hookEvents.map((e) => JSON.stringify(e)).join('\n') + '\n{broken\n', 'utf8');
+
+      const text = spawnSync(process.execPath, [summaryScript, '--artifactDir', dir], { encoding: 'utf8' });
+      assert.equal(text.status, 0, text.stderr);
+      assert.match(text.stdout, /Pre-tool decisions: 4/);
+      assert.match(text.stdout, /force_ask: 2/);
+      assert.match(text.stdout, /Missing log files .*stop-event-log\.jsonl.*post-tool-telemetry\.jsonl/);
+      assert.match(text.stdout, /Skipped 1 malformed log line/);
+
+      const json = spawnSync(process.execPath, [summaryScript, '--artifactDir', dir, '--json'], { encoding: 'utf8' });
+      assert.equal(JSON.parse(json.stdout).preTool.decisions.deny, 1);
+
+      const missing = spawnSync(process.execPath, [summaryScript, '--artifactDir', path.join(dir, 'nope')], { encoding: 'utf8' });
+      assert.equal(missing.status, 1);
+      assert.match(missing.stderr, /No artifact directory found/);
+    });
+  });
+
+  // ==========================================
+  // 13. Context Cost Report (P3-3)
+  // ==========================================
+  describe('Context Cost Report', () => {
+    test('classifies rules by paths frontmatter and reads trigger and skill description', () => {
+      assert.equal(isConditionalRule('---\ntrigger: glob\npaths:\n  - "**/*.py"\n---\nbody'), true);
+      assert.equal(isConditionalRule('---\ntrigger: model_decision\ndescription: x\n---\nbody'), false);
+      assert.equal(isConditionalRule('no frontmatter, mentions paths: here'), false);
+      assert.equal(ruleTrigger('---\ntrigger: model_decision\n---\n'), 'model_decision');
+      assert.equal(ruleTrigger('---\ndescription: x\n---\n'), null);
+      assert.equal(skillDescription('---\nname: a\ndescription: "Does a thing."\n---\nbody'), 'Does a thing.');
+      assert.equal(skillDescription('no frontmatter'), '');
+    });
+
+    test('measures always-loaded and conditional rules, skills, and subagents under a workspace', () => {
+      const ws = fs.mkdtempSync(path.join(tempTestDir, 'ctx-cost-'));
+      const write = (rel, text) => {
+        fs.mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
+        fs.writeFileSync(path.join(ws, rel), text, 'utf8');
+      };
+      write('.agents/rules/always.md', '---\ntrigger: always_on\n---\n' + 'a'.repeat(100));
+      write('.agents/rules/ondemand.md', '---\ntrigger: model_decision\n---\n' + 'b'.repeat(200));
+      write('.agents/rules/py.md', '---\ntrigger: glob\npaths:\n  - "**/*.py"\n---\n' + 'c'.repeat(300));
+      write('.agents/skills/demo/SKILL.md', '---\nname: demo\ndescription: Short text.\n---\n' + 'd'.repeat(400));
+      write('.agents/agents/helper.md', 'agent definition');
+      write('.agents/agents/README.md', 'ignored index');
+      write('AGENTS.md', 'root');
+
+      const report = measureContextCost(ws);
+      assert.equal(report.rules.sessionStart.count, 1, 'only the always_on rule loads at session start');
+      assert.equal(report.rules.conditional.count, 1);
+      assert.equal(report.rules.onDemand.count, 1, 'model_decision rules without paths are on-demand');
+      assert.equal(report.rules.sessionStart.estimatedTokens, Math.round(report.rules.sessionStart.bytes / 4));
+      assert.equal(report.skills.descriptions.bytes, 'Short text.'.length);
+      assert.ok(report.skills.bodies.bytes > 400);
+      assert.equal(report.subagentDefinitions.count, 1, 'the agents README is not a subagent');
+      assert.deepEqual(report.rootInstructionFiles.files, [{ name: 'AGENTS.md', bytes: 4 }]);
+      assert.match(formatReport(report), /Rules loaded at session start: 1 files/);
+    });
+
+    test('measuring an empty workspace yields zero totals without throwing', () => {
+      const report = measureContextCost(fs.mkdtempSync(path.join(tempTestDir, 'ctx-empty-')));
+      assert.equal(report.rules.sessionStart.count, 0);
+      assert.equal(report.skills.bodies.count, 0);
+    });
+  });
+
+  // ==========================================
+  // 14. Validator Documentation Drift Checks (P1-1, P1-2)
+  // ==========================================
+  describe('Validator Documentation Drift Checks', () => {
+    function runValidatorIn(workspace) {
+      const scriptsDir = path.join(workspace, '.agents', 'scripts');
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      fs.copyFileSync(path.resolve('.agents/scripts/validate-framework.mjs'), path.join(scriptsDir, 'validate-framework.mjs'));
+      const res = spawnSync(process.execPath, [path.join(scriptsDir, 'validate-framework.mjs')], { cwd: workspace, encoding: 'utf8' });
+      return `${res.stdout}\n${res.stderr}`;
+    }
+
+    function buildWorkspace(name, { badgeVersion, pluginBullets }) {
+      const ws = fs.mkdtempSync(path.join(tempTestDir, `${name}-`));
+      fs.mkdirSync(path.join(ws, '.agents', 'plugins', 'real-plugin'), { recursive: true });
+      fs.writeFileSync(path.join(ws, '.agents', 'framework.config.json'), JSON.stringify({ version: '9.9.9' }), 'utf8');
+      fs.writeFileSync(path.join(ws, 'README.md'), `![Version](https://img.shields.io/badge/version-${badgeVersion}-blue)\n`, 'utf8');
+      fs.writeFileSync(
+        path.join(ws, '.agents', 'plugins', 'README.md'),
+        `# Plugins\n\n## 1. Status\n\nText.\n\n## 2. Plugin Directories\n\n${pluginBullets}\n\n## 3. Layout\n\n- \`not-a-plugin/\`\n`,
+        'utf8'
+      );
+      return ws;
+    }
+
+    test('reports a README version badge that differs from framework.config.json (P1-1)', () => {
+      const output = runValidatorIn(buildWorkspace('drift-badge', { badgeVersion: '1.0.0', pluginBullets: 'None.' }));
+      assert.match(output, /\[FAIL\] Release: README version badge \(1\.0\.0\) does not match framework\.config\.json \(9\.9\.9\)/);
+
+      const okOutput = runValidatorIn(buildWorkspace('match-badge', { badgeVersion: '9.9.9', pluginBullets: 'None.' }));
+      assert.match(okOutput, /\[PASS\] Release: README version badge matches/);
+    });
+
+    test('reports plugin directories listed in plugins/README.md that do not exist (P1-2)', () => {
+      const output = runValidatorIn(buildWorkspace('drift-plugin', { badgeVersion: '9.9.9', pluginBullets: '- `real-plugin/`\n- `ghost-plugin/`' }));
+      assert.match(output, /\[FAIL\] Plugins: .*do not exist: ghost-plugin(?!.*real-plugin)/);
+      assert.doesNotMatch(output, /not-a-plugin/, 'bullets outside the Plugin Directories section are ignored');
+
+      const okOutput = runValidatorIn(buildWorkspace('ok-plugin', { badgeVersion: '9.9.9', pluginBullets: '- `real-plugin/`' }));
+      assert.match(okOutput, /\[PASS\] Plugins: Every plugin directory listed in plugins\/README\.md exists \(1 listed\)/);
     });
   });
 });

@@ -1,22 +1,22 @@
-# Plugins Directory & Catalog
+# Plugins Directory
 
-This directory houses plugin extensions, custom MCP tool adapters, and prototype plugins for the AI Agent Engineering Framework.
+This directory is reserved for plugin extensions, custom MCP tool adapters, and prototype plugins for the AI Agent Engineering Framework.
 
 ---
 
-## 1. Overview & Prototype Status
-The directories within this folder are **experimental prototypes** designed to explore custom tool extensions, external knowledge probes, and MCP server integrations:
-- `probe-knowledge/`: Prototype knowledge retrieval plugin exploring private documentation indexing and hybrid search.
-- `probe-plugin-one/`: Generic tool extension prototype one evaluating tool registration contracts.
-- `probe-plugin-two/`: Tool extension prototype two evaluating multi-agent broker compatibility.
+## 1. Current Status
 
 > [!NOTE]
-> These plugins are in prototype status and are not currently active in production agent workflows.
+> No plugins are currently shipped. Earlier drafts of this README named prototype directories (`probe-knowledge/`, `probe-plugin-one/`, `probe-plugin-two/`), but none exist in the repository. The framework validator checks that any plugin directory listed in section 2 actually exists.
 
----
+## 2. Plugin Directories
 
-## 2. Plugin Architecture & Structure
-Standard framework plugins adhere to the Antigravity Plugin specification:
+None.
+
+## 3. Proposed Plugin Structure
+
+When a plugin is added, list its directory in section 2 and use this layout:
+
 ```plaintext
 plugin-name/
 ├── plugin.json         # Plugin metadata, permissions, and tool declarations
@@ -25,9 +25,10 @@ plugin-name/
 └── README.md           # Plugin installation, usage, and configuration guide
 ```
 
----
+This layout is a proposal, not a specification enforced by the framework.
 
-## 3. Security & Isolation Guidelines
+## 4. Security and Isolation Guidelines
+
 - **Sandboxed Execution**: Plugins operate within sandbox constraints by default (`commandExecutionPolicy: sandbox`).
 - **Zero Hardcoded Secrets**: Authentication tokens or API credentials must be passed via environment variables or the platform account broker.
 - **Verification**: Any custom tool provided by a plugin must declare explicit argument schemas and pass validation tests before inclusion in production subagents.

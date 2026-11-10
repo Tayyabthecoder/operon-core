@@ -1,6 +1,14 @@
 ---
 trigger: model_decision
 description: Apply API design standards when creating, modifying, documenting, testing, or reviewing API endpoints, contracts, request and response schemas, versioning, pagination, error handling, and external integrations.
+paths:
+  - "**/api/**"
+  - "**/routes/**"
+  - "**/controllers/**"
+  - "**/openapi*.yaml"
+  - "**/openapi*.yml"
+  - "**/openapi*.json"
+  - "**/swagger*.json"
 ---
 
 # API Design and Integration Standards

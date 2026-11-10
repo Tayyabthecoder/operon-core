@@ -10,6 +10,10 @@
       "docs/"
     ]
   },
+  "commandPolicy": {
+    "allowedCommands": [],
+    "allowedBackgroundCommands": []
+  },
   "fingerprint": {
     "additionalExclusions": []
   },
@@ -20,8 +24,8 @@
   },
   "claudeCode": {
     "modelMap": {
-      "pro": "inherit",
-      "flash": "inherit"
+      "pro": "opus",
+      "flash": "sonnet"
     }
   },
   "expectedCounts": {
@@ -29,7 +33,7 @@
     "skills": 81,
     "templates": 11,
     "subagents": 6,
-    "docs": 8,
+    "docs": 10,
     "skillBindings": 53,
     "workflows": 9
   },
@@ -190,7 +194,9 @@
     "docs/database/README.md",
     "docs/api/README.md",
     "docs/testing/README.md",
-    "docs/deployment/README.md"
+    "docs/deployment/README.md",
+    "docs/design/README.md",
+    "docs/maintenance/README.md"
   ],
   "workflows": [
     "build-fix.md",
