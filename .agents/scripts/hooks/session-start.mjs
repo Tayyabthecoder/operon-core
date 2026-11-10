@@ -1,26 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { computeWorkspaceFingerprint } from '../lib/workspace-fingerprint.mjs';
-
-/**
- * Reads all content from stdin as a string.
- * @returns {Promise<string>}
- */
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      resolve(data);
-    });
-    process.stdin.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
+import { readStdin } from '../lib/hook-common.mjs';
 
 async function main() {
   let payload = {};

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readStdin } from '../lib/hook-common.mjs';
 
 /**
  * Post-Tool Safety Hook: Mutation Auditing & Telemetry
@@ -7,22 +8,6 @@ import path from 'node:path';
  * Runs after every tool execution to log tool completion telemetry,
  * record audit trails for mutations, and track state changes.
  */
-
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      data += chunk;
-    });
-    process.stdin.on('end', () => {
-      resolve(data);
-    });
-    process.stdin.on('error', (err) => {
-      reject(err);
-    });
-  });
-}
 
 async function main() {
   let payload = {};
