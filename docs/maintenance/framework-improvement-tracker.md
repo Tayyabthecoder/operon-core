@@ -58,6 +58,14 @@ Work from `framework-roadmap.md` (a local, git-ignored file at the repository ro
 - The 5 TODO/TBD hits are advice text (for example "label it `TBD`"), not unfinished content. No empty sections.
 - Not assessed: whether the advice is correct or changes agent behavior (that is R1-4).
 
+## R2: Roadmap Part 2 (started 2026-11-11)
+
+Work from `framework-roadmap.md` (local, git-ignored), Part 2. `R2-n` matches the roadmap IDs.
+
+| ID | Task | Primary files | Status | Verification |
+|---|---|---|---|---|
+| R2-6 | Eval harness | `.agents/scripts/eval-runner.mjs`, `.agents/evals/policy-scenarios.json`, `.agents/scripts/tests/eval-runner.test.mjs`, `.agents/framework.config.json` (runner added to `commandPolicy.allowedCommands`), `.github/workflows/ci.yml` (new step), `README.md` | In progress | 35 policy scenarios in 6 categories (destructive git, shell safety, allowlist, file boundary, control plane, rule reminders) all pass through the real Claude Code adapter on Windows. 7 tests cover the runner, including that a wrong expectation fails and a platform mismatch is skipped. Not yet run on Ubuntu CI. Scope limit: the scenarios call no model, so they measure the policy layer only; the roadmap's agent-in-the-loop example ("fix a failing test without touching unrelated files") needs a logged-in `claude` CLI (see R1-4) and is not built |
+
 ## Verification Log
 
 | Date | Check | Result |

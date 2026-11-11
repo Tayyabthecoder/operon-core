@@ -147,6 +147,8 @@ Behavior is configured in [`.agents/framework.config.json`](.agents/framework.co
 
 `ruleReminders` in the same file names moments when an on-demand rule matters (for example `git commit` or edits under `docs/architecture/`). The Claude Code adapter then attaches a one-line reminder to the tool call; it never changes the allow, ask, or deny decision.
 
+`node .agents/scripts/eval-runner.mjs` runs the policy scenarios in [`.agents/evals/policy-scenarios.json`](.agents/evals/policy-scenarios.json): each one sends a tool call through the real Claude Code adapter in a temporary workspace that uses this repository's `framework.config.json`, and checks the decision (allow, ask, deny), the reason, and the rule reminder. No model is called, so runs are free and repeatable; it exits with 1 if any scenario fails, and CI runs it. Pass rates are appended to `eval-history.jsonl` in the session artifact directory. Scenarios that need a live agent are not covered yet.
+
 Two report-only maintenance scripts: `node .agents/scripts/ecc-drift.mjs` compares the rules adapted from ECC with a local copy of the upstream package (the stamp check also runs in the validator), and `node .agents/scripts/skill-audit.mjs` reports structural problems in skill bodies.
 
 ## Using with Claude Code

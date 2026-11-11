@@ -33,3 +33,6 @@ jobs:
 
       - name: Run safety and lifecycle tests
         run: node .agents/scripts/verify-runner.mjs --profile node-test -- ".agents/scripts/tests/*.mjs"
+
+      - name: Run policy evals
+        run: node .agents/scripts/eval-runner.mjs --no-history

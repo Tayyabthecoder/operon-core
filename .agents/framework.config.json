@@ -11,7 +11,7 @@
     ]
   },
   "commandPolicy": {
-    "allowedCommands": [],
+    "allowedCommands": ["node .agents/scripts/eval-runner.mjs"],
     "allowedBackgroundCommands": [],
     "allowedPatterns": []
   },
