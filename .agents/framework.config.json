@@ -50,17 +50,20 @@
     "rules": 126,
     "skills": 81,
     "templates": 11,
-    "subagents": 6,
+    "subagents": 9,
     "docs": 10,
-    "skillBindings": 53,
+    "skillBindings": 61,
     "workflows": 9
   },
   "subagents": [
     "accessibility-auditor.md",
     "architect-planner.md",
     "code-implementer.md",
+    "dependency-auditor.md",
     "diagnostic-debugger.md",
+    "docs-auditor.md",
     "qa-reviewer.md",
+    "release-manager.md",
     "security-auditor.md"
   ],
   "rules": [

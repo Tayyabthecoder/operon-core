@@ -1326,12 +1326,15 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       'accessibility-auditor.md',
       'architect-planner.md',
       'code-implementer.md',
+      'dependency-auditor.md',
       'diagnostic-debugger.md',
+      'docs-auditor.md',
       'qa-reviewer.md',
+      'release-manager.md',
       'security-auditor.md',
     ];
 
-    test('all six subagent definitions declare subagent: true, inheritMcp: false, and inheritCustomizations: true', () => {
+    test('all nine subagent definitions declare subagent: true, inheritMcp: false, and inheritCustomizations: true', () => {
       for (const file of agentFiles) {
         const content = fs.readFileSync(path.join(agentsDir, file), 'utf8');
         assert.ok(/subagent:\s*true/i.test(content), `${file} missing subagent: true`);
@@ -1356,18 +1359,27 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       }
     });
 
-    test('other five subagents declare exactly [read_file, send_message, manage_task]', () => {
+    test('other eight subagents declare exactly [read_file, send_message, manage_task]', () => {
       const readOnlyAgents = agentFiles.filter((f) => f !== 'code-implementer.md');
+      assert.equal(readOnlyAgents.length, 8);
       for (const file of readOnlyAgents) {
         const content = fs.readFileSync(path.join(agentsDir, file), 'utf8');
         const frontmatter = content.split('---')[1] || '';
-        assert.ok(frontmatter.includes('read_file'));
-        assert.ok(frontmatter.includes('send_message'));
-        assert.ok(frontmatter.includes('manage_task'));
+        const tools = [...frontmatter.matchAll(/^\s+-\s+(read_file|send_message|manage_task|\w+_\w+)\s*$/gm)].map((m) => m[1]);
+        assert.deepEqual(tools.sort(), ['manage_task', 'read_file', 'send_message'], `${file} tools`);
+        assert.ok(/commandExecutionPolicy:\s*off/.test(frontmatter), `${file} must keep commandExecutionPolicy: off`);
       }
     });
 
-    test('all configured skill bindings across the six agents resolve to existing directories in .agents/skills/', () => {
+    test('the agent files on disk are exactly the nine in the config', () => {
+      const config = JSON.parse(fs.readFileSync(path.resolve('.agents/framework.config.json'), 'utf8'));
+      const onDisk = fs.readdirSync(agentsDir).filter((f) => f.endsWith('.md') && f !== 'README.md').sort();
+      assert.deepEqual(onDisk, [...agentFiles].sort());
+      assert.deepEqual(onDisk, [...config.subagents].sort());
+      assert.equal(config.expectedCounts.subagents, 9);
+    });
+
+    test('all configured skill bindings across the nine agents resolve to existing directories in .agents/skills/', () => {
       const config = JSON.parse(fs.readFileSync(path.resolve('.agents/framework.config.json'), 'utf8'));
       let count = 0;
       for (const file of agentFiles) {

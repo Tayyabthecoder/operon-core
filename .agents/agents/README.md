@@ -6,7 +6,7 @@ This directory defines the specialized subagents operating within the AI Agent E
 
 ## 1. Operating Principles & Least Privilege
 To enforce defense-in-depth and avoid unauthorized mutations:
-- **Strict Read-Only Posture for Auditors & Planners**: Five of the six subagents (`architect-planner`, `diagnostic-debugger`, `qa-reviewer`, `security-auditor`, `accessibility-auditor`) declare `commandExecutionPolicy: off` and possess only read tools: `[read_file, send_message, manage_task]`.
+- **Strict Read-Only Posture for Auditors & Planners**: Eight of the nine subagents (`architect-planner`, `diagnostic-debugger`, `qa-reviewer`, `security-auditor`, `accessibility-auditor`, `docs-auditor`, `dependency-auditor`, `release-manager`) declare `commandExecutionPolicy: off` and possess only read tools: `[read_file, send_message, manage_task]`.
 - **Single Mutation Subagent**: Only `code-implementer` possesses filesystem mutation and command execution tools: `[read_file, write_file, edit_file, run_command, send_message, manage_task]`.
 - **Environment & MCP Isolation**: All subagents declare `subagent: true`, `inheritMcp: false` (to isolate ambient tool catalogs), and `inheritCustomizations: true` (to inherit project rules and skills).
 
@@ -22,6 +22,9 @@ To enforce defense-in-depth and avoid unauthorized mutations:
 | **qa-reviewer** | [`qa-reviewer.md`](qa-reviewer.md) | `pro` | `off` | `read_file`, `send_message`, `manage_task` | Test evidence review, git diff auditing, static-analysis review, quality gate issuance. |
 | **security-auditor** | [`security-auditor.md`](security-auditor.md) | `pro` | `off` | `read_file`, `send_message`, `manage_task` | Threat modeling, OWASP vulnerability audits, credential exposure detection. |
 | **accessibility-auditor** | [`accessibility-auditor.md`](accessibility-auditor.md) | `pro` | `off` | `read_file`, `send_message`, `manage_task` | WCAG 2.1 AA audits, screen-reader compatibility, keyboard navigation checks. |
+| **docs-auditor** | [`docs-auditor.md`](docs-auditor.md) | `flash` | `off` | `read_file`, `send_message`, `manage_task` | Documentation vs code accuracy audits, broken references, unverified claims. Reports only; corrections go to `code-implementer`. |
+| **dependency-auditor** | [`dependency-auditor.md`](dependency-auditor.md) | `flash` | `off` | `read_file`, `send_message`, `manage_task` | Manifest and lockfile hygiene, version drift, redundancy, licenses, upgrade risk. Security findings are handed to `security-auditor`. |
+| **release-manager** | [`release-manager.md`](release-manager.md) | `pro` | `off` | `read_file`, `send_message`, `manage_task` | Release readiness from supplied evidence, version and changelog consistency, release notes drafts, go or no-go. Never tags, publishes, or deploys. |
 
 ---
 

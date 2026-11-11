@@ -38,7 +38,7 @@ The framework is host-neutral. Its hooks and policies are plain Node.js scripts,
 | **Skills catalog** | 81 reusable skills, from requirements analysis and database design to threat modeling, load testing, and incident response, including 16 language review and 11 language build-fix skills adapted from ECC. |
 | **Workflows** | 9 slash-command workflows (`/plan`, `/plan-prd`, `/feature-dev`, `/code-review`, `/pr`, `/build-fix`, `/test-coverage`, `/refactor-clean`, `/update-docs`) adapted from ECC and gated by the framework's safety rules. |
 | **Specification templates** | 11 templates for PRDs, SRS documents, ADRs, database schemas, API contracts, test plans, and deployment runbooks. |
-| **Subagent fleet** | 6 subagents with least-privilege tool access. Only one can modify files or run commands. |
+| **Subagent fleet** | 9 subagents with least-privilege tool access. Only one can modify files or run commands. |
 | **Safety hooks** | Lifecycle hooks that fingerprint the workspace, gate shell commands against an allowlist, block path traversal, and require verification before a session ends. |
 | **Documentation store** | A structured [`docs/`](docs/README.md) hierarchy for product, requirements, architecture, database, API, testing, and deployment documents. |
 
@@ -58,6 +58,9 @@ graph TD
         QR["qa-reviewer"]
         SA["security-auditor"]
         AA["accessibility-auditor"]
+        DA["docs-auditor"]
+        DP["dependency-auditor"]
+        RM["release-manager"]
     end
 
     PA --> Hooks
@@ -120,6 +123,9 @@ Definitions live in [`.agents/agents/`](.agents/agents/README.md).
 | `qa-reviewer` | Reviews test, lint, and typecheck evidence and audits diffs to give a quality-gate decision | Read-only |
 | `security-auditor` | Threat modeling, vulnerability assessment, dependency and credential-exposure review | Read-only |
 | `accessibility-auditor` | Accessibility audits, screen-reader and keyboard-navigation compliance review | Read-only |
+| `docs-auditor` | Compares documentation with the code, configuration, and tests it describes and reports discrepancies | Read-only |
+| `dependency-auditor` | Reviews manifests, lockfiles, versions, licenses, and upgrade risk; hands security findings to `security-auditor` | Read-only |
+| `release-manager` | Judges release readiness from supplied evidence, checks version and changelog consistency, drafts release notes, and issues a go or no-go; never tags, publishes, or deploys | Read-only |
 
 All subagents run without inherited MCP tools, so their capabilities are exactly what their definition declares. They still inherit the project's rules and skills.
 
@@ -186,7 +192,7 @@ operon-core/
 └── .agents/
     ├── framework.config.json  # Configuration and expected-counts manifest
     ├── hooks.json             # Lifecycle hook registrations
-    ├── agents/                # 6 subagent definitions
+    ├── agents/                # 9 subagent definitions
     ├── plugins/               # Prototype plugins (experimental)
     ├── rules/                 # 15 core rules + 111 language rules
     ├── scratch/               # Temporary agent workspace (excluded from fingerprinting)

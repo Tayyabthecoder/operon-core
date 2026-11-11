@@ -31,8 +31,11 @@ The AI Agent Engineering Framework implements a strict hierarchical broker archi
 | `qa-reviewer` | `read_file`, `send_message`, `manage_task` | None | `off` | `inheritMcp: false` | `inheritCustomizations: true` |
 | `security-auditor` | `read_file`, `send_message`, `manage_task` | None | `off` | `inheritMcp: false` | `inheritCustomizations: true` |
 | `accessibility-auditor` | `read_file`, `send_message`, `manage_task` | None | `off` | `inheritMcp: false` | `inheritCustomizations: true` |
+| `docs-auditor` | `read_file`, `send_message`, `manage_task` | None | `off` | `inheritMcp: false` | `inheritCustomizations: true` |
+| `dependency-auditor` | `read_file`, `send_message`, `manage_task` | None | `off` | `inheritMcp: false` | `inheritCustomizations: true` |
+| `release-manager` | `read_file`, `send_message`, `manage_task` | None | `off` | `inheritMcp: false` | `inheritCustomizations: true` |
 
-All six subagents declare `subagent: true`, `inheritMcp: false`, and `inheritCustomizations: true`. Five subagents have no mutation or command tools; only `code-implementer` possesses sandboxed source modification and command execution capabilities.
+All nine subagents declare `subagent: true`, `inheritMcp: false`, and `inheritCustomizations: true`. Eight subagents have no mutation or command tools; only `code-implementer` possesses sandboxed source modification and command execution capabilities.
 
 ### Primary Agent Broker Workflow
 

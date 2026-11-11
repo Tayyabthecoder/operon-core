@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Three read-only subagents: `docs-auditor` (documentation vs code accuracy), `dependency-auditor` (manifests, lockfiles, licenses, upgrade risk), and `release-manager` (release readiness and go or no-go; never tags, publishes, or deploys). The fleet is now 9 subagents, 8 of them read-only, with 61 skill bindings.
 - Command policy in `framework.config.json`: `commandPolicy.allowedCommands` (exact foreground command lines) and `commandPolicy.allowedBackgroundCommands` (exact commands allowed as background processes). Listed commands still go through the chaining and destructive-command checks. `git diff --staged` is allowed.
 - `.agents/scripts/lib/hook-common.mjs`: one `readStdin` and one workspace-root implementation shared by the hooks and the Claude Code adapter.
 - Claude Code adapter audit log: every governed tool call is recorded in `hook-event-log.jsonl` (tool, target, decision, reason with quoted values removed). Before this, only the standalone hook scripts logged decisions. `summarize-hook-logs.mjs` summarizes the logs.
