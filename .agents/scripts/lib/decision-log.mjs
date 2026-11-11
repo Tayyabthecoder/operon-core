@@ -109,7 +109,7 @@ export function formatEntry({ date, tag, text }) {
   return `- ${date} [${tag}] ${text}`;
 }
 
-const HEADER = [
+export const HEADER = [
   '# Decision Log',
   '',
   'Decisions, conventions, and lessons for this project. One entry per line:',

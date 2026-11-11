@@ -1,0 +1,24 @@
+{
+  "name": "operon-core",
+  "version": "2.0.0",
+  "description": "Agent engineering framework: safety hooks, rules, skills, and a bootstrap CLI.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "operon": "bin/operon.mjs"
+  },
+  "files": [
+    "bin",
+    ".agents",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=21"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tayyabthecoder/operon-core.git"
+  }
+}

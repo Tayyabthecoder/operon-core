@@ -111,6 +111,17 @@ node .agents/scripts/verify-runner.mjs --profile node-test -- ".agents/scripts/t
 
 Each run records its results in a `verification-evidence.json` file in a per-workspace folder under your OS temp directory.
 
+### Install into another project
+
+From a clone of this repository, install the framework into any other repository:
+
+```bash
+node bin/operon.mjs init ../my-project --dry-run
+node bin/operon.mjs init ../my-project
+```
+
+`init` copies `.agents/` (core rules, skills, subagents, workflows, templates, and the safety scripts), the `docs/` guides, and `THIRD_PARTY_NOTICES.md`. It detects the stack from marker files such as `package.json`, `go.mod`, or `pyproject.toml` and installs only the matching language rules; pass `--stack python,typescript` to choose them yourself. It creates `AGENTS.md` and `CLAUDE.md` only when they are missing, writes an empty decision log, and does not copy this repository's tests or decision entries. It never overwrites: a target that already has `.agents/` is refused. The package is marked `private`, and nothing here publishes it. Afterwards run `node .agents/scripts/adapters/setup-claude-code.mjs` in the target for Claude Code wiring.
+
 ## Subagent Fleet
 
 Definitions live in [`.agents/agents/`](.agents/agents/README.md).
