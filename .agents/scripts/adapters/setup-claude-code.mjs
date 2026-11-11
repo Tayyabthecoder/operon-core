@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { claudeCodeRuleLoading } from '../lib/rule-metadata.mjs';
+import { grantsForAgent, loadRawMcpPolicy, normalizeMcpPolicy, validateMcpPolicy } from '../lib/mcp-policy.mjs';
 
 /**
  * Claude Code Setup
@@ -90,7 +91,7 @@ function removeDirectoryLink(p) {
  * @param {Record<string,string>} modelMap
  * @returns {string}
  */
-export function toClaudeAgent(source, sourceRel, modelMap = DEFAULT_MODEL_MAP) {
+export function toClaudeAgent(source, sourceRel, modelMap = DEFAULT_MODEL_MAP, mcpGrants = []) {
   const text = source.replace(/^﻿/, '');
   const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
   if (!fm) throw new Error(`No frontmatter in ${sourceRel}`);
@@ -115,6 +116,8 @@ export function toClaudeAgent(source, sourceRel, modelMap = DEFAULT_MODEL_MAP) {
     if (!(tool in TOOL_MAP)) throw new Error(`Unmapped tool "${tool}" in ${sourceRel}`);
     for (const mapped of TOOL_MAP[tool]) if (!tools.includes(mapped)) tools.push(mapped);
   }
+  // MCP tools reach a subagent only through an explicit grant in `mcpPolicy.agentGrants`.
+  for (const grant of mcpGrants) if (!tools.includes(grant)) tools.push(grant);
   const tier = scalar('model');
   const model = (tier && modelMap[tier]) || 'inherit';
   const skills = list('skills').map((s) => s.replace(/^skills\//, ''));
@@ -257,10 +260,15 @@ export function setupClaudeCode(root, options = {}) {
   const modelMap = readConfigModelMap(root);
   const agentsOut = abs('.claude/agents');
   const sources = fs.readdirSync(abs('.agents/agents')).filter((f) => f.endsWith('.md') && f !== 'README.md').sort();
+  // MCP grants are applied only when the whole policy validates; otherwise no agent receives an MCP tool.
+  const rawMcpPolicy = loadRawMcpPolicy(root);
+  const mcpErrors = validateMcpPolicy(rawMcpPolicy, sources.map((f) => f.replace(/\.md$/, '')));
+  if (mcpErrors.length) problems.push(`mcpPolicy has errors, so no MCP tools were granted to subagents: ${mcpErrors.join('; ')}`);
+  const mcpPolicy = normalizeMcpPolicy(mcpErrors.length ? undefined : rawMcpPolicy);
   if (!check) fs.mkdirSync(agentsOut, { recursive: true });
   for (const file of sources) {
     const sourceRel = `.agents/agents/${file}`;
-    const wanted = toClaudeAgent(fs.readFileSync(abs(sourceRel), 'utf8'), sourceRel, modelMap);
+    const wanted = toClaudeAgent(fs.readFileSync(abs(sourceRel), 'utf8'), sourceRel, modelMap, grantsForAgent(mcpPolicy, file.replace(/\.md$/, '')));
     const outPath = path.join(agentsOut, file);
     const current = fs.existsSync(outPath) ? fs.readFileSync(outPath, 'utf8') : null;
     if (current === wanted) continue;

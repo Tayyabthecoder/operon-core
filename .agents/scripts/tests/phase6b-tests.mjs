@@ -1810,8 +1810,8 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       const scriptsDir = path.join(workspace, '.agents', 'scripts');
       fs.mkdirSync(scriptsDir, { recursive: true });
       fs.mkdirSync(path.join(scriptsDir, 'lib'), { recursive: true });
-      // The validator imports ecc-drift.mjs, which imports lib/rule-metadata.mjs.
-      for (const file of ['validate-framework.mjs', 'ecc-drift.mjs', 'lib/rule-metadata.mjs']) {
+      // The validator imports ecc-drift.mjs (which imports lib/rule-metadata.mjs) and lib/mcp-policy.mjs.
+      for (const file of ['validate-framework.mjs', 'ecc-drift.mjs', 'lib/rule-metadata.mjs', 'lib/mcp-policy.mjs']) {
         fs.copyFileSync(path.resolve('.agents/scripts', file), path.join(scriptsDir, file));
       }
       const res = spawnSync(process.execPath, [path.join(scriptsDir, 'validate-framework.mjs')], { cwd: workspace, encoding: 'utf8' });

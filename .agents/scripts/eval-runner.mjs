@@ -72,6 +72,8 @@ export function substitute(value, vars) {
  * @returns {string} Canonical workspace path
  */
 export function createFixtureWorkspace(fixture) {
+  // `fixture.configOverrides` replaces top-level keys of the copied framework.config.json, so a
+  // scenario suite can run against a test policy (for example `mcpPolicy`) without touching the repo's.
   const ws = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'eval-ws-')));
   for (const [relative, content] of Object.entries(fixture.files || {})) {
     const target = path.join(ws, relative);
@@ -82,6 +84,12 @@ export function createFixtureWorkspace(fixture) {
     const target = path.join(ws, relative);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(repoRoot, relative), target);
+  }
+  if (fixture.configOverrides) {
+    const configPath = path.join(ws, '.agents', 'framework.config.json');
+    const base = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, 'utf8').replace(/^﻿/, '')) : {};
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify({ ...base, ...fixture.configOverrides }, null, 2), 'utf8');
   }
   return ws;
 }

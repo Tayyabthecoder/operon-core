@@ -9,7 +9,19 @@
       ".env": "TOKEN=fake-value",
       "docs/architecture/overview.md": "# Architecture"
     },
-    "copyFromRepo": [".agents/framework.config.json", ".agents/hooks.json"]
+    "copyFromRepo": [".agents/framework.config.json", ".agents/hooks.json"],
+    "configOverrides": {
+      "mcpPolicy": {
+        "defaultDecision": "ask",
+        "servers": {
+          "example": {
+            "tools": { "get_*": "allow", "get_secret*": "deny", "delete_*": "deny", "*": "ask" },
+            "readOnlyTools": ["get_item"]
+          }
+        },
+        "agentGrants": {}
+      }
+    }
   },
   "scenarios": [
     { "id": "git-reset-hard", "category": "destructive-git", "description": "Refuse git reset --hard", "tool": "Bash", "input": { "command": "git reset --hard HEAD~1" }, "expect": { "decision": "deny", "reasonIncludes": "reset --hard" } },
@@ -50,6 +62,11 @@
     { "id": "reminder-git-commit", "category": "reminders", "description": "Remind the agent to read git-workflow.md before a commit, without changing the decision", "tool": "Bash", "input": { "command": "git commit -m wip" }, "expect": { "decision": "ask", "contextIncludes": "git-workflow.md" } },
     { "id": "reminder-architecture-edit", "category": "reminders", "description": "Remind the agent to read architecture.md when editing architecture docs", "tool": "Edit", "input": { "file_path": "{ws}/docs/architecture/overview.md", "new_string": "# Architecture v2" }, "expect": { "decision": "allow", "contextIncludes": "architecture.md" } },
     { "id": "reminder-none-for-status", "category": "reminders", "description": "No reminder for an unrelated command", "tool": "Bash", "input": { "command": "git status" }, "expect": { "decision": "allow", "noContext": true } },
+    { "id": "mcp-read-allowed", "category": "mcp", "description": "An MCP read tool the policy allows is not blocked", "tool": "mcp__example__get_item", "input": { "id": "42" }, "expect": { "decision": "allow" } },
+    { "id": "mcp-write-asks", "category": "mcp", "description": "An MCP tool matched only by the server's catch-all asks for confirmation", "tool": "mcp__example__update_record", "input": { "id": "42", "value": "x" }, "expect": { "decision": "ask", "reasonIncludes": "confirmation" } },
+    { "id": "mcp-delete-denied", "category": "mcp", "description": "A denied MCP tool is refused", "tool": "mcp__example__delete_record", "input": { "id": "42" }, "expect": { "decision": "deny", "reasonIncludes": "denied" } },
+    { "id": "mcp-deny-beats-allow", "category": "mcp", "description": "A deny pattern wins over a broader allow pattern", "tool": "mcp__example__get_secret_key", "input": {}, "expect": { "decision": "deny" } },
+    { "id": "mcp-unlisted-server-default", "category": "mcp", "description": "A server with no rules follows defaultDecision", "tool": "mcp__other__anything", "input": {}, "expect": { "decision": "ask", "reasonIncludes": "defaultDecision" } },
     { "id": "ungoverned-web-fetch", "category": "reminders", "description": "Tools the framework does not govern are left to the host", "tool": "WebFetch", "input": { "url": "https://example.com" }, "expect": { "decision": "allow", "noContext": true } }
   ]
 }

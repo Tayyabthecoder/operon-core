@@ -8,7 +8,7 @@ This directory defines the specialized subagents operating within the AI Agent E
 To enforce defense-in-depth and avoid unauthorized mutations:
 - **Strict Read-Only Posture for Auditors & Planners**: Eight of the nine subagents (`architect-planner`, `diagnostic-debugger`, `qa-reviewer`, `security-auditor`, `accessibility-auditor`, `docs-auditor`, `dependency-auditor`, `release-manager`) declare `commandExecutionPolicy: off` and possess only read tools: `[read_file, send_message, manage_task]`.
 - **Single Mutation Subagent**: Only `code-implementer` possesses filesystem mutation and command execution tools: `[read_file, write_file, edit_file, run_command, send_message, manage_task]`.
-- **Environment & MCP Isolation**: All subagents declare `subagent: true`, `inheritMcp: false` (to isolate ambient tool catalogs), and `inheritCustomizations: true` (to inherit project rules and skills).
+- **Environment & MCP Isolation**: All subagents declare `subagent: true`, `inheritMcp: false` (to isolate ambient tool catalogs), and `inheritCustomizations: true` (to inherit project rules and skills). A subagent receives an MCP tool only through an explicit `mcpPolicy.agentGrants` entry in `framework.config.json`; read-only agents may only be granted tools the project attested as read-only. No grants are configured by default.
 
 ---
 

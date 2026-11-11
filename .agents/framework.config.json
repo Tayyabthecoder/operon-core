@@ -15,6 +15,11 @@
     "allowedBackgroundCommands": [],
     "allowedPatterns": []
   },
+  "mcpPolicy": {
+    "defaultDecision": "allow",
+    "servers": {},
+    "agentGrants": {}
+  },
   "ruleReminders": [
     {
       "id": "git-workflow",

@@ -7,6 +7,7 @@ import { commandName, evaluateCommandSafety } from '../hooks/pre-tool-safety.mjs
 import { resolveDefaultArtifactDir } from '../lib/artifact-dir.mjs';
 import { readStdin, redactReason } from '../lib/hook-common.mjs';
 import { findRuleReminders, loadRuleReminders } from '../lib/rule-reminders.mjs';
+import { evaluateMcpCall, loadMcpPolicy, parseMcpToolName } from '../lib/mcp-policy.mjs';
 
 /**
  * Claude Code Adapter
@@ -53,8 +54,9 @@ function commandCwd(cwd, projectDir) {
 
 /**
  * Translates a Claude Code tool call into a framework tool call.
- * Returns null for tools the framework does not govern (web, MCP, agents, etc.),
- * which are left to Claude Code's own permission settings.
+ * Returns null for tools this translation does not cover (web, agents, etc.), which are left
+ * to Claude Code's own permission settings. MCP tools are evaluated separately by `mcpPolicy`
+ * in evaluateClaudePreToolDecision.
  * @param {string} toolName
  * @param {object} toolInput
  * @param {{ projectDir: string, cwd?: string }} context
@@ -150,6 +152,19 @@ export function evaluateClaudePreToolUse(ccPayload) {
  */
 export function evaluateClaudePreToolDecision(ccPayload) {
   const projectDir = resolveProjectDir(ccPayload);
+
+  // MCP tools are governed by `mcpPolicy`. The call is recorded as `mcp_call` with the argument key
+  // names only; argument values never reach the audit log.
+  const parsedMcp = parseMcpToolName(ccPayload?.tool_name);
+  if (parsedMcp) {
+    const verdict = evaluateMcpCall(ccPayload.tool_name, loadMcpPolicy(projectDir));
+    const input = ccPayload.tool_input && typeof ccPayload.tool_input === 'object' ? ccPayload.tool_input : {};
+    return {
+      toolCall: { name: 'mcp_call', args: { Server: parsedMcp.server, Tool: parsedMcp.tool, argKeys: Object.keys(input).sort() } },
+      result: { decision: verdict.decision === 'ask' ? 'force_ask' : verdict.decision, reason: verdict.reason },
+    };
+  }
+
   const toolCall = translateToolCall(ccPayload?.tool_name, ccPayload?.tool_input, { projectDir, cwd: ccPayload?.cwd });
   if (!toolCall) return null;
 
@@ -167,7 +182,10 @@ export function evaluateClaudePreToolDecision(ccPayload) {
  */
 function logPreToolDecision(artifactDir, evaluated) {
   try {
-    const input = summarizePayloadForLog({ toolCall: evaluated.toolCall });
+    const isMcp = evaluated.toolCall?.name === 'mcp_call';
+    const input = isMcp
+      ? { tool: 'mcp_call', target: `${evaluated.toolCall.args.Server}/${evaluated.toolCall.args.Tool}`, argKeys: evaluated.toolCall.args.argKeys }
+      : summarizePayloadForLog({ toolCall: evaluated.toolCall });
     // Program name only (never arguments), so the log summary can suggest allowlist candidates.
     const commandLine = evaluated.toolCall?.args?.CommandLine;
     if (evaluated.toolCall?.name === 'run_command' && typeof commandLine === 'string' && commandLine.trim()) {

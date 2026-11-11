@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDriftReport } from './ecc-drift.mjs';
+import { validateMcpPolicy } from './lib/mcp-policy.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -418,6 +419,22 @@ if (allSkillsResolved && totalSkillBindings === expectedSkillBindings) {
   reportPass('Subagents', `All ${expectedSkillBindings} skill bindings across ${presentAgents.length} subagents resolve to existing directories in .agents/skills/`);
 } else {
   reportFail('Subagents', `Skill binding verification failed: resolved=${allSkillsResolved}, total=${totalSkillBindings} (expected ${expectedSkillBindings})`);
+}
+
+// 6b. MCP policy (optional). Grants to read-only agents must be attested read-only tools.
+console.log(`\n=== 6b. Validating MCP Policy ===`);
+{
+  const rawMcpPolicy = frameworkConfig.mcpPolicy;
+  const mcpErrors = validateMcpPolicy(rawMcpPolicy, expectedAgents.map((agent) => agent.replace(/\.md$/, '')));
+  if (mcpErrors.length === 0) {
+    const serverCount = Object.keys(rawMcpPolicy?.servers || {}).length;
+    const grantCount = Object.values(rawMcpPolicy?.agentGrants || {}).reduce((sum, tools) => sum + tools.length, 0);
+    reportPass('MCP', rawMcpPolicy === undefined
+      ? 'No mcpPolicy configured (MCP tools follow Claude Code permissions)'
+      : `mcpPolicy is valid (default ${rawMcpPolicy.defaultDecision ?? 'allow'}, ${serverCount} server rule set(s), ${grantCount} agent grant(s))`);
+  } else {
+    for (const error of mcpErrors) reportFail('MCP', error);
+  }
 }
 
 // 7. Security Hook Behavior Validation
