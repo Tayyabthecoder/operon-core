@@ -1,0 +1,17 @@
+{
+  "name": "operon-safety",
+  "version": "2.0.0",
+  "description": "Safety hooks for Claude Code (command, file, and MCP guardrails, audit log, decision log at session start), plus core review skills and read-only subagents.",
+  "author": {
+    "name": "Muhammad Tayyab"
+  },
+  "repository": "https://github.com/Tayyabthecoder/operon-core",
+  "license": "MIT",
+  "keywords": [
+    "safety",
+    "hooks",
+    "guardrails",
+    "review",
+    "subagents"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "operon",
+  "description": "Claude Code plugins from the operon-core agent framework.",
+  "owner": {
+    "name": "Muhammad Tayyab"
+  },
+  "plugins": [
+    {
+      "name": "operon-safety",
+      "source": "./.agents/plugins/operon-safety",
+      "description": "Safety hooks, core review skills, and read-only subagents for Claude Code."
+    }
+  ]
+}

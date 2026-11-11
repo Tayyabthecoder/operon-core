@@ -7,25 +7,28 @@ This directory is reserved for plugin extensions, custom MCP tool adapters, and 
 ## 1. Current Status
 
 > [!NOTE]
-> No plugins are currently shipped. Earlier drafts of this README named prototype directories (`probe-knowledge/`, `probe-plugin-one/`, `probe-plugin-two/`), but none exist in the repository. The framework validator checks that any plugin directory listed in section 2 actually exists.
+> One plugin is shipped: `operon-safety`, a Claude Code plugin generated from the framework sources. The framework validator checks that every plugin directory listed in section 2 exists, and that the generated plugin still matches its sources.
 
 ## 2. Plugin Directories
 
-None.
+- `operon-safety/`: Claude Code plugin with the safety hooks, 7 core skills, and the 9 subagents. Do not edit it by hand: run `node .agents/scripts/build-plugin.mjs` after changing the framework (`--check` reports drift). What it leaves out, and why, is in its own `README.md`.
 
-## 3. Proposed Plugin Structure
+## 3. Installing the Plugin
 
-When a plugin is added, list its directory in section 2 and use this layout:
+The repository root has a marketplace file (`.claude-plugin/marketplace.json`) that points at `operon-safety/`. Try it without installing, from a clone:
 
-```plaintext
-plugin-name/
-├── plugin.json         # Plugin metadata, permissions, and tool declarations
-├── skills/             # Plugin-specific specialized skills
-├── tools/              # MCP or JavaScript tool execution handlers
-└── README.md           # Plugin installation, usage, and configuration guide
+```bash
+claude --plugin-dir .agents/plugins/operon-safety
 ```
 
-This layout is a proposal, not a specification enforced by the framework.
+Or add the clone as a local marketplace and install from it:
+
+```bash
+claude plugin marketplace add .
+claude plugin install operon-safety@operon
+```
+
+Check the plugin and marketplace files with `claude plugin validate . --strict`. Nothing here publishes the plugin anywhere.
 
 ## 4. Security and Isolation Guidelines
 

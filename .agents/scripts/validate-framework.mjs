@@ -246,6 +246,24 @@ console.log(`\n=== 4c. Validating ECC Source Stamps ===`);
   }
 }
 
+// 4d. Verify the generated Claude Code plugin still matches its sources (skipped where the builder is absent)
+console.log(`\n=== 4d. Validating Generated Claude Code Plugin ===`);
+{
+  const builderPath = path.join(rootDir, '.agents', 'scripts', 'lib', 'plugin-build.mjs');
+  if (!fs.existsSync(builderPath)) {
+    reportPass('Plugin', 'No plugin builder in this workspace; nothing to compare');
+  } else {
+    const { checkPlugin, PLUGIN_DIR } = await import(pathToFileURL(builderPath).href);
+    const { missing, changed, extra } = checkPlugin(rootDir);
+    const problems = [...missing.map((f) => `missing ${f}`), ...changed.map((f) => `changed ${f}`), ...extra.map((f) => `unexpected ${f}`)];
+    if (problems.length === 0) {
+      reportPass('Plugin', `${PLUGIN_DIR} matches the framework sources`);
+    } else {
+      reportFail('Plugin', `${PLUGIN_DIR} is out of date (${problems.length} file(s), first: ${problems[0]}); run node .agents/scripts/build-plugin.mjs`);
+    }
+  }
+}
+
 // 5. Markdown Link & Portability Validation
 console.log(`\n=== 5. Validating Markdown Links & Portability ===`);
 

@@ -174,7 +174,9 @@ Two maintenance scripts: `node .agents/scripts/ecc-drift.mjs` compares the rules
 
 ## Using with Claude Code
 
-The core hooks are host-neutral. [`claude-code.mjs`](.agents/scripts/adapters/claude-code.mjs) maps Claude Code's tool payloads onto them: `allow` defers to Claude Code's own permissions, `force_ask` becomes `ask`, and `deny` becomes `deny`.
+**As a plugin.** `.agents/plugins/operon-safety/` is a Claude Code plugin generated from this framework: the safety hooks (`SessionStart`, `PreToolUse`, `PostToolUse`), 7 core skills, and the 9 subagents. Try it from a clone with `claude --plugin-dir .agents/plugins/operon-safety`, or add the clone as a marketplace (`claude plugin marketplace add .`, then `claude plugin install operon-safety@operon`). The hooks read the project's `.agents/framework.config.json` when it exists and use safe defaults when it does not. It does not include rules, workflows, or the Stop gate: a plugin has no place for rules, and the other two need scripts from a full install (`node bin/operon.mjs init`). Regenerate it with `node .agents/scripts/build-plugin.mjs`; the validator fails when the committed plugin differs from the sources. It has not been published anywhere.
+
+**As a project install.** The core hooks are host-neutral. [`claude-code.mjs`](.agents/scripts/adapters/claude-code.mjs) maps Claude Code's tool payloads onto them: `allow` defers to Claude Code's own permissions, `force_ask` becomes `ask`, and `deny` becomes `deny`.
 
 Claude Code does not read `.agents/` on its own. Run the setup script once from the repository root (and again after changing rules or subagents):
 
@@ -209,7 +211,7 @@ operon-core/
     ├── hooks.json             # Lifecycle hook registrations
     ├── agents/                # 9 subagent definitions
     ├── evals/                 # Policy scenarios run by eval-runner.mjs
-    ├── plugins/               # Plugin structure notes (README only, no plugins yet)
+    ├── plugins/               # Generated Claude Code plugin (operon-safety) and notes
     ├── rules/                 # 15 core rules + 111 language rules
     ├── scratch/               # Temporary agent workspace, created on demand (excluded from fingerprinting)
     ├── scripts/               # Hooks, adapters, tests, validator, and verification runner
@@ -222,7 +224,7 @@ operon-core/
 
 - [`docs/README.md`](docs/README.md): index of the project documentation hierarchy
 - [`.agents/agents/README.md`](.agents/agents/README.md): subagent architecture and the Primary Broker pattern
-- [`.agents/plugins/README.md`](.agents/plugins/README.md): plugin structure notes (no plugins yet)
+- [`.agents/plugins/README.md`](.agents/plugins/README.md): the generated `operon-safety` plugin: contents, install, limits
 - [`CHANGELOG.md`](CHANGELOG.md): release history, following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): material adapted from ECC (`ecc-universal`, MIT) and its license
 

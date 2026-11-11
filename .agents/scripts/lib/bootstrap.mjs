@@ -22,7 +22,10 @@ export const STACKS = Object.freeze([
 ]);
 
 /** Directories and files under `.agents/` that are copied as they are. */
-const COPY_ENTRIES = ['agents', 'evals', 'hooks.json', 'plugins', 'skills', 'templates', 'workflows'];
+const COPY_ENTRIES = ['agents', 'evals', 'hooks.json', 'skills', 'templates', 'workflows'];
+
+/** Scripts that only make sense in the framework repository itself (the CLI, the plugin builder). */
+const REPOSITORY_ONLY_SCRIPTS = new Set(['build-plugin.mjs', 'lib/bootstrap.mjs', 'lib/plugin-build.mjs']);
 
 /**
  * @param {string} fileName A rule file name such as `python-testing.md`
@@ -157,7 +160,7 @@ export function planInit({ sourceRoot, targetDir, stacks = 'auto' }) {
   const scriptsDir = path.join(sourceAgents, 'scripts');
   for (const file of listFiles(scriptsDir)) {
     const relative = path.relative(scriptsDir, file);
-    if (relative.split(path.sep)[0] === 'tests') continue;
+    if (relative.split(path.sep)[0] === 'tests' || REPOSITORY_ONLY_SCRIPTS.has(relative.split(path.sep).join('/'))) continue;
     files.push({ from: file, to: path.join(target, '.agents', 'scripts', relative) });
   }
 

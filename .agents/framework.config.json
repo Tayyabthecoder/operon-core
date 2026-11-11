@@ -48,7 +48,8 @@
   },
   "validation": {
     "linkCheckExclusions": [
-      "ECC-framework"
+      "ECC-framework",
+      ".agents/plugins/operon-safety"
     ]
   },
   "claudeCode": {
