@@ -4,6 +4,7 @@ import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildDriftReport } from './ecc-drift.mjs';
 import { validateMcpPolicy } from './lib/mcp-policy.mjs';
+import { normalizeMemoryConfig, parseDecisionLog, validateMemoryConfig } from './lib/decision-log.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -434,6 +435,27 @@ console.log(`\n=== 6b. Validating MCP Policy ===`);
       : `mcpPolicy is valid (default ${rawMcpPolicy.defaultDecision ?? 'allow'}, ${serverCount} server rule set(s), ${grantCount} agent grant(s))`);
   } else {
     for (const error of mcpErrors) reportFail('MCP', error);
+  }
+}
+
+// 6c. Decision log (optional). Malformed or secret-like lines would be skipped at session start; fail early instead.
+console.log(`\n=== 6c. Validating Decision Log ===`);
+{
+  const memoryErrors = validateMemoryConfig(frameworkConfig.memory);
+  for (const error of memoryErrors) reportFail('Memory', error);
+  if (memoryErrors.length === 0) {
+    const memory = normalizeMemoryConfig(frameworkConfig.memory);
+    const logPath = path.join(rootDir, memory.file);
+    if (!fs.existsSync(logPath)) {
+      reportPass('Memory', `No decision log at ${memory.file} (nothing is loaded at session start)`);
+    } else {
+      const { entries, problems } = parseDecisionLog(readFileClean(logPath));
+      if (problems.length === 0) {
+        reportPass('Memory', `Decision log ${memory.file} has ${entries.length} valid entr${entries.length === 1 ? 'y' : 'ies'} (limits: ${memory.maxEntries} entries, ${memory.maxBytes} bytes at session start)`);
+      } else {
+        for (const problem of problems) reportFail('Memory', `${memory.file} line ${problem.line}: ${problem.reason}`);
+      }
+    }
   }
 }
 

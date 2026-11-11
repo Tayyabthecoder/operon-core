@@ -20,6 +20,12 @@
     "servers": {},
     "agentGrants": {}
   },
+  "memory": {
+    "enabled": true,
+    "file": ".agents/memory/decision-log.md",
+    "maxEntries": 30,
+    "maxBytes": 4000
+  },
   "ruleReminders": [
     {
       "id": "git-workflow",

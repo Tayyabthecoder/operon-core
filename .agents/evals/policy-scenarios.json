@@ -7,7 +7,8 @@
       "README.md": "# Fixture",
       "AGENTS.md": "# Agents",
       ".env": "TOKEN=fake-value",
-      "docs/architecture/overview.md": "# Architecture"
+      "docs/architecture/overview.md": "# Architecture",
+      ".agents/memory/decision-log.md": "# Decision Log\n"
     },
     "copyFromRepo": [".agents/framework.config.json", ".agents/hooks.json"],
     "configOverrides": {
@@ -59,6 +60,8 @@
     { "id": "control-plane-agents-md", "category": "control-plane", "description": "Ask before editing AGENTS.md", "tool": "Edit", "input": { "file_path": "{ws}/AGENTS.md", "new_string": "# changed" }, "expect": { "decision": "ask", "reasonIncludes": "control-plane" } },
     { "id": "control-plane-scratch", "category": "control-plane", "description": "Allow the scratch area under .agents", "tool": "Write", "input": { "file_path": "{ws}/.agents/scratch/note.txt", "content": "x" }, "expect": { "decision": "allow" } },
 
+    { "id": "memory-write-asks", "category": "control-plane", "description": "Remembering something in the decision log needs the user's confirmation", "tool": "Edit", "input": { "file_path": "{ws}/.agents/memory/decision-log.md", "new_string": "- 2026-11-11 [decision] x" }, "expect": { "decision": "ask", "reasonIncludes": "control-plane" } },
+    { "id": "memory-read-allowed", "category": "control-plane", "description": "Reading the decision log is not blocked", "tool": "Read", "input": { "file_path": "{ws}/.agents/memory/decision-log.md" }, "expect": { "decision": "allow" } },
     { "id": "reminder-git-commit", "category": "reminders", "description": "Remind the agent to read git-workflow.md before a commit, without changing the decision", "tool": "Bash", "input": { "command": "git commit -m wip" }, "expect": { "decision": "ask", "contextIncludes": "git-workflow.md" } },
     { "id": "reminder-architecture-edit", "category": "reminders", "description": "Remind the agent to read architecture.md when editing architecture docs", "tool": "Edit", "input": { "file_path": "{ws}/docs/architecture/overview.md", "new_string": "# Architecture v2" }, "expect": { "decision": "allow", "contextIncludes": "architecture.md" } },
     { "id": "reminder-none-for-status", "category": "reminders", "description": "No reminder for an unrelated command", "tool": "Bash", "input": { "command": "git status" }, "expect": { "decision": "allow", "noContext": true } },

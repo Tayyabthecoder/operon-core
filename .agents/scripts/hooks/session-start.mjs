@@ -2,6 +2,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { computeWorkspaceFingerprint } from '../lib/workspace-fingerprint.mjs';
 import { readStdin } from '../lib/hook-common.mjs';
+import { loadDecisionLogContext } from '../lib/decision-log.mjs';
+
+/**
+ * Appends the project decision log (when one exists and memory is enabled) to a session message.
+ * A failure to read it never blocks the session.
+ */
+function withDecisionLog(message, workspaceRoot) {
+  try {
+    const memory = loadDecisionLogContext(workspaceRoot);
+    return memory ? `${message}\n\n${memory}` : message;
+  } catch {
+    return message;
+  }
+}
 
 async function main() {
   let payload = {};
@@ -31,7 +45,7 @@ async function main() {
       injectSteps: [
         {
           systemMessage: {
-            systemMessage: 'Session baseline skipped: artifactDirectoryPath not provided.',
+            systemMessage: withDecisionLog('Session baseline skipped: artifactDirectoryPath not provided.', workspaceRoot),
           },
         },
       ],
@@ -62,7 +76,7 @@ async function main() {
       injectSteps: [
         {
           systemMessage: {
-            systemMessage: `Session baseline established. Workspace fingerprint: ${baseline.compositeDigest} (${baseline.fileCount} tracked files). Filesystem change verification is active.`,
+            systemMessage: withDecisionLog(`Session baseline established. Workspace fingerprint: ${baseline.compositeDigest} (${baseline.fileCount} tracked files). Filesystem change verification is active.`, workspaceRoot),
           },
         },
       ],

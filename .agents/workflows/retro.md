@@ -49,7 +49,7 @@ If any scenario fails, treat it as a regression: identify the change that caused
 
 ## Phase 5 — PROPOSALS
 
-Produce a short ranked list. For each proposal give: the file to change, the exact change, the evidence from Phases 2 to 4, the risk of making it, and how to verify it (validator, tests, eval run). Mark each as `Safe` (docs, new eval scenario) or `Needs approval` (anything in `.agents/framework.config.json`, `.agents/rules/`, `.agents/agents/`, `.agents/hooks.json`, or the scripts).
+Produce a short ranked list. For each proposal give: the file to change, the exact change, the evidence from Phases 2 to 4, the risk of making it, and how to verify it (validator, tests, eval run). Also list **decision-log candidates**: a lesson, convention, or decision from this review that a future session should know (for example "a recurring denial was resolved by documenting an exception"). Propose each as one line for `node .agents/scripts/decision-log.mjs add --tag <tag> "<text>"` and add it only after the user approves; never record secrets or personal data. Mark each as `Safe` (docs, new eval scenario) or `Needs approval` (anything in `.agents/framework.config.json`, `.agents/rules/`, `.agents/agents/`, `.agents/hooks.json`, or the scripts).
 
 ## Phase 6 — WRITE THE RETROSPECTIVE
 

@@ -5,6 +5,7 @@ This repository follows a structured organization for AI-assisted engineering an
 ## Directory Overview
 
 - `.agents/agents/`: 9 subagent definitions declaring model policies, tool privileges, and skill bindings (`architect-planner`, `code-implementer`, `diagnostic-debugger`, `qa-reviewer`, `security-auditor`, `accessibility-auditor`, `docs-auditor`, `dependency-auditor`, `release-manager`).
+- `.agents/memory/decision-log.md`: Short project decision log loaded at session start within a size budget (notes, not instructions); entries are added only with the user's approval.
 - `.agents/hooks.json`: Lifecycle hook registrations enforcing session safety (SessionStart, PreToolUse, PostToolUse, Stop).
 - `.agents/rules/`: Reusable project rules and coding standards (126 rules: 15 core domain and operational rules plus 111 language-specific rules adapted from ECC).
 - `.agents/scripts/`: Framework verification, integrity auditing, and safety enforcement scripts (`validate-framework.mjs`, `verify-runner.mjs`, lifecycle hooks).
