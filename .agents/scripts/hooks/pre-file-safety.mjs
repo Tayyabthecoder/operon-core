@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractCanonicalWorkspaceRoot, readStdin } from '../lib/hook-common.mjs';
+import { canonicalCase, extractCanonicalWorkspaceRoot, readStdin } from '../lib/hook-common.mjs';
 
 export { extractCanonicalWorkspaceRoot };
 
@@ -59,7 +59,7 @@ export function resolveCanonicalWriteTarget(absoluteTarget) {
     probe = parent;
   }
   const realAncestor = fs.realpathSync.native(probe);
-  return path.normalize(path.join(realAncestor, ...missingSegments)).toLowerCase();
+  return canonicalCase(path.normalize(path.join(realAncestor, ...missingSegments)));
 }
 
 /**
@@ -279,7 +279,7 @@ export function validateCanonicalPath(targetRaw, canonicalRoot, workspaceRoot) {
 
   // 3. Canonical containment check (SECOND GATE)
   try {
-    const canonicalTarget = path.normalize(fs.realpathSync.native(requestedResolved)).toLowerCase();
+    const canonicalTarget = canonicalCase(path.normalize(fs.realpathSync.native(requestedResolved)));
     const relFromRoot = path.relative(canonicalRoot, canonicalTarget);
     if (path.isAbsolute(relFromRoot)) {
       return {
@@ -377,7 +377,7 @@ export function validateScopeBoundary(targetDir, canonicalRoot) {
     return { safe: false, reason: `Search scope directory does not exist: "${targetDir}".` };
   }
   try {
-    const canonicalScope = path.normalize(fs.realpathSync.native(resolved)).toLowerCase();
+    const canonicalScope = canonicalCase(path.normalize(fs.realpathSync.native(resolved)));
     const rel = path.relative(canonicalRoot, canonicalScope);
     if (path.isAbsolute(rel) || rel === '..' || rel.startsWith('../')) {
       return { safe: false, reason: `Search scope resolves outside workspace boundary: "${targetDir}".` };

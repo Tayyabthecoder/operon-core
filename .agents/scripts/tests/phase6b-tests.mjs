@@ -30,6 +30,11 @@ import { isConditionalRule, ruleTrigger, skillDescription, measureContextCost, f
 import { claudeCodeRuleLoading } from '../lib/rule-metadata.mjs';
 import { toClaudeRule } from '../adapters/setup-claude-code.mjs';
 
+// An absolute directory that exists on the platform and is never inside a test workspace.
+const OUTSIDE_DIR = process.platform === 'win32' ? 'C:\\Windows\\System32' : '/usr/bin';
+// Backslashes are path separators only on Windows; elsewhere they are ordinary filename characters.
+const WINDOWS_ONLY = process.platform === 'win32' ? {} : { skip: 'Windows-only: backslash is a path separator only on Windows' };
+
 describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
   let tempTestDir;
   let artifactTestDir;
@@ -270,7 +275,7 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
     });
 
     test('denies execution with Cwd outside workspace boundary', () => {
-      const out = executeHook('node app.js', 'C:\\Windows\\System32');
+      const out = executeHook('node app.js', OUTSIDE_DIR);
       assert.equal(out.decision, 'deny');
       assert.ok(out.reason.includes('outside workspace boundary'));
     });
@@ -321,7 +326,7 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
     }
 
     test('denies writes outside workspace boundary', () => {
-      const out = executeFileHook('write_file', 'C:\\Windows\\System32\\drivers.txt');
+      const out = executeFileHook('write_file', path.join(OUTSIDE_DIR, 'drivers.txt'));
       assert.equal(out.decision, 'deny');
       assert.ok(out.reason.includes('outside workspace boundary'));
     });
@@ -503,7 +508,7 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
     });
 
     test('broad recursive search pattern containing protected paths is denied', () => {
-      const canonicalRoot = path.normalize(fs.realpathSync.native(tempTestDir)).toLowerCase();
+      const canonicalRoot = hookCommon.canonicalCase(path.normalize(fs.realpathSync.native(tempTestDir)));
       const res1 = validateScopeBoundary('.env', canonicalRoot);
       assert.equal(res1.safe, false);
 
@@ -563,7 +568,7 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
     });
 
     test('pure boundary scope unit test validates clean subdirectory and rejects escaping scopes', () => {
-      const canonicalRoot = path.normalize(fs.realpathSync.native(tempTestDir)).toLowerCase();
+      const canonicalRoot = hookCommon.canonicalCase(path.normalize(fs.realpathSync.native(tempTestDir)));
       const scopeRes = validateScopeBoundary('src', canonicalRoot);
       assert.equal(scopeRes.safe, true);
 
@@ -628,16 +633,24 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
       assert.equal(out.decision, 'allow');
     });
 
-    test('lexical traversal ..\\..\\outside\\.env returns deny before sensitive evaluation', () => {
+    test('lexical traversal ..\\..\\outside\\.env returns deny before sensitive evaluation', WINDOWS_ONLY, () => {
       const out = executeFileHook('read_file', '..\\..\\outside\\.env');
       assert.equal(out.decision, 'deny');
       assert.ok(out.reason.includes('traverses outside workspace boundary'));
     });
 
-    test('lexical traversal ..\\outside\\credentials.json returns deny before sensitive evaluation', () => {
+    test('lexical traversal ..\\outside\\credentials.json returns deny before sensitive evaluation', WINDOWS_ONLY, () => {
       const out = executeFileHook('read_file', '..\\outside\\credentials.json');
       assert.equal(out.decision, 'deny');
       assert.ok(out.reason.includes('traverses outside workspace boundary'));
+    });
+
+    test('lexical traversal ../../outside/.env and ../outside/credentials.json deny on every platform', () => {
+      for (const target of ['../../outside/.env', '../outside/credentials.json']) {
+        const out = executeFileHook('read_file', target);
+        assert.equal(out.decision, 'deny', target);
+        assert.ok(out.reason.includes('traverses outside workspace boundary'), target);
+      }
     });
 
     test('sensitive directory itself src/.aws returns force_ask', () => {
@@ -710,7 +723,7 @@ describe('Phase 6B: Lifecycle Hooks & Filesystem Safety Test Suite', () => {
         toolCall: {
           name: 'generic',
           args: {
-            Path: 'C:\\Windows\\System32\\cmd.exe',
+            Path: path.join(OUTSIDE_DIR, 'cmd.exe'),
             Content: 'bad',
           },
         },

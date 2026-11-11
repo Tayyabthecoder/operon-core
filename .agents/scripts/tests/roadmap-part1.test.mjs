@@ -10,6 +10,8 @@ import {
   isValidCommandPattern,
   matchesCommandPattern,
 } from '../hooks/pre-tool-safety.mjs';
+import { evaluateFileSafety, validateScopeBoundary } from '../hooks/pre-file-safety.mjs';
+import { canonicalCase, extractCanonicalWorkspaceRoot } from '../lib/hook-common.mjs';
 import { withRuleReminders } from '../adapters/claude-code.mjs';
 import { findRuleReminders, loadRuleReminders } from '../lib/rule-reminders.mjs';
 import { summarizeLogs, formatSummary } from '../summarize-hook-logs.mjs';
@@ -185,6 +187,29 @@ describe('R1-6: log insights', () => {
     const summary = summarizeLogs({ hookEvents: [ask(undefined), ask(undefined), ask(undefined), { input: { tool: 'edit_file' }, decision: { decision: 'force_ask' } }] });
     assert.deepEqual(summary.insights.allowlistCandidates, []);
     assert.doesNotMatch(formatSummary(summary), /Allowlist candidates/);
+  });
+});
+
+describe('R1-1: case-sensitive file systems', () => {
+  test('canonicalCase lowercases only where the file system is case-insensitive', () => {
+    const insensitive = process.platform === 'win32' || process.platform === 'darwin';
+    assert.equal(canonicalCase('/Work/MixedCase'), insensitive ? '/work/mixedcase' : '/Work/MixedCase');
+  });
+
+  test('a workspace path containing capitals still resolves for reads and search scopes', () => {
+    const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'CaseTest-')));
+    try {
+      fs.mkdirSync(path.join(base, 'Src'));
+      fs.writeFileSync(path.join(base, 'Src', 'App.js'), 'x', 'utf8');
+      const read = evaluateFileSafety({ toolCall: { name: 'read_file', args: { Path: 'Src/App.js' } }, workspacePaths: [base] });
+      assert.equal(read.decision, 'allow', read.reason);
+      const root = extractCanonicalWorkspaceRoot({ workspacePaths: [base] });
+      assert.equal(validateScopeBoundary('Src', root).safe, true);
+      const escape = evaluateFileSafety({ toolCall: { name: 'read_file', args: { Path: path.join(path.dirname(base), 'other.txt') } }, workspacePaths: [base] });
+      assert.equal(escape.decision, 'deny');
+    } finally {
+      fs.rmSync(base, { recursive: true, force: true });
+    }
   });
 });
 

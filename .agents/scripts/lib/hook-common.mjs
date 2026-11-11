@@ -27,6 +27,17 @@ export function readStdin() {
 }
 
 /**
+ * Normalizes the case of a canonical filesystem path for comparison. Windows and macOS file
+ * systems are case-insensitive by default, so paths are lowercased there. Elsewhere (Linux) case
+ * is significant: lowercasing would make real directories unreachable and equate distinct ones.
+ * @param {string} canonicalPath
+ * @returns {string}
+ */
+export function canonicalCase(canonicalPath) {
+  return process.platform === 'win32' || process.platform === 'darwin' ? canonicalPath.toLowerCase() : canonicalPath;
+}
+
+/**
  * Replaces double-quoted segments of a policy reason with a placeholder. Reasons embed the
  * offending command line or path in quotes, and audit logs must never record argument values.
  * @param {unknown} reason
@@ -89,7 +100,7 @@ export function extractRawWorkspaceRoot(payload) {
  * Rejects relative paths before resolve, rejects remote URI authorities,
  * disambiguates multi-root payloads, and ensures the target is an existing directory.
  * @param {object} payload
- * @returns {string|null} Canonical lowercased workspace root, or null if unestablished
+ * @returns {string|null} Canonical workspace root (lowercased where the file system is case-insensitive), or null if unestablished
  */
 export function extractCanonicalWorkspaceRoot(payload) {
   const candidateRaw = extractRawWorkspaceRoot(payload);
@@ -115,7 +126,7 @@ export function extractCanonicalWorkspaceRoot(payload) {
     if (!realStat.isDirectory()) {
       return null;
     }
-    return path.normalize(realRoot).toLowerCase();
+    return canonicalCase(path.normalize(realRoot));
   } catch {
     return null;
   }

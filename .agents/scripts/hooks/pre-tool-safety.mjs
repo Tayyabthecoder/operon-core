@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { extractCanonicalWorkspaceRoot, extractRawWorkspaceRoot, readStdin } from '../lib/hook-common.mjs';
+import { canonicalCase, extractCanonicalWorkspaceRoot, extractRawWorkspaceRoot, readStdin } from '../lib/hook-common.mjs';
 
 export { extractCanonicalWorkspaceRoot };
 
@@ -283,7 +283,7 @@ export function evaluateCommandSafety(payload) {
       return { decision: 'deny', reason: 'Command working directory does not exist.' };
     }
     try {
-      const canonicalCwd = path.normalize(fs.realpathSync.native(rawCwd.trim())).toLowerCase();
+      const canonicalCwd = canonicalCase(path.normalize(fs.realpathSync.native(rawCwd.trim())));
       if (canonicalCwd !== canonicalRoot) {
         return {
           decision: 'deny',
