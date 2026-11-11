@@ -155,7 +155,7 @@ Behavior is configured in [`.agents/framework.config.json`](.agents/framework.co
 
 `node .agents/scripts/eval-runner.mjs` runs the policy scenarios in [`.agents/evals/policy-scenarios.json`](.agents/evals/policy-scenarios.json): each one sends a tool call through the real Claude Code adapter in a temporary workspace that uses this repository's `framework.config.json`, and checks the decision (allow, ask, deny), the reason, and the rule reminder. No model is called, so runs are free and repeatable; it exits with 1 if any scenario fails, and CI runs it. Pass rates are appended to `eval-history.jsonl` in the session artifact directory. Scenarios that need a live agent are not covered yet.
 
-Two report-only maintenance scripts: `node .agents/scripts/ecc-drift.mjs` compares the rules adapted from ECC with a local copy of the upstream package (the stamp check also runs in the validator), and `node .agents/scripts/skill-audit.mjs` reports structural problems in skill bodies.
+Two maintenance scripts: `node .agents/scripts/ecc-drift.mjs` compares the rules adapted from ECC with a local copy of the upstream package and exits 1 if a stamp differs from `THIRD_PARTY_NOTICES.md` (the same stamp check runs in the validator), and `node .agents/scripts/skill-audit.mjs` is report-only and lists structural problems in skill bodies.
 
 ## Using with Claude Code
 
@@ -167,7 +167,7 @@ Claude Code does not read `.agents/` on its own. Run the setup script once from 
 node .agents/scripts/adapters/setup-claude-code.mjs
 ```
 
-It links `.claude/skills` and `.claude/commands` to the framework's skills and workflows (junctions on Windows, symlinks elsewhere), generates `.claude/rules/` as copies of the rules except those declared `trigger: model_decision` without `paths:` (Claude Code loads every file in `.claude/rules` at session start, so those four rules are listed in `AGENTS.md` for the agent to read on demand instead), generates `.claude/agents/` from `.agents/agents/` with Claude Code tool names (`Read`, `Grep`, `Glob`; `Write`, `Edit`, `Bash` only for `code-implementer`), creates `.claude/settings.json` with the adapter hooks, and creates a `CLAUDE.md` containing `@AGENTS.md`. Subagent model tiers map to Claude Code models through `claudeCode.modelMap` in `framework.config.json` (currently `pro` → `opus` for the planner, QA, security, and accessibility agents; `flash` → `sonnet` for the implementer and debugger). Existing user files are never overwritten; the script reports what to merge by hand. Check the wiring at any time with `--check`.
+It links `.claude/skills` and `.claude/commands` to the framework's skills and workflows (junctions on Windows, symlinks elsewhere), generates `.claude/rules/` as copies of the rules except those declared `trigger: model_decision` without `paths:` (Claude Code loads every file in `.claude/rules` at session start, so those four rules are listed in `AGENTS.md` for the agent to read on demand instead), generates `.claude/agents/` from `.agents/agents/` with Claude Code tool names (`Read`, `Grep`, `Glob`; `Write`, `Edit`, `Bash` only for `code-implementer`), creates `.claude/settings.json` with the adapter hooks, and creates a `CLAUDE.md` containing `@AGENTS.md`. Subagent model tiers map to Claude Code models through `claudeCode.modelMap` in `framework.config.json` (currently `pro` → `opus` for the planner, QA, security, accessibility, and release-manager agents; `flash` → `sonnet` for the implementer, debugger, docs-auditor, and dependency-auditor). Existing user files are never overwritten; the script reports what to merge by hand. Check the wiring at any time with `--check`.
 
 Enabling the hooks applies the framework's command policy to every Claude Code session in the repository, including chained shell commands being denied.
 
@@ -193,9 +193,10 @@ operon-core/
     ├── framework.config.json  # Configuration and expected-counts manifest
     ├── hooks.json             # Lifecycle hook registrations
     ├── agents/                # 9 subagent definitions
-    ├── plugins/               # Prototype plugins (experimental)
+    ├── evals/                 # Policy scenarios run by eval-runner.mjs
+    ├── plugins/               # Plugin structure notes (README only, no plugins yet)
     ├── rules/                 # 15 core rules + 111 language rules
-    ├── scratch/               # Temporary agent workspace (excluded from fingerprinting)
+    ├── scratch/               # Temporary agent workspace, created on demand (excluded from fingerprinting)
     ├── scripts/               # Hooks, adapters, tests, validator, and verification runner
     ├── skills/                # 81 reusable engineering skills
     ├── workflows/             # 9 slash-command workflows (adapted from ECC)
@@ -206,7 +207,7 @@ operon-core/
 
 - [`docs/README.md`](docs/README.md): index of the project documentation hierarchy
 - [`.agents/agents/README.md`](.agents/agents/README.md): subagent architecture and the Primary Broker pattern
-- [`.agents/plugins/README.md`](.agents/plugins/README.md): plugin structure (prototypes only)
+- [`.agents/plugins/README.md`](.agents/plugins/README.md): plugin structure notes (no plugins yet)
 - [`CHANGELOG.md`](CHANGELOG.md): release history, following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md): material adapted from ECC (`ecc-universal`, MIT) and its license
 
@@ -214,7 +215,7 @@ operon-core/
 
 1. Read [`AGENTS.md`](AGENTS.md) and the rules in [`.agents/rules/`](.agents/rules/) before making changes.
 2. Keep changes scoped. Avoid unrelated refactoring and unnecessary new files or dependencies.
-3. Run both verification commands from [Getting Started](#getting-started) and make sure they pass. The same two commands run in CI on Ubuntu and Windows ([`ci.yml`](.github/workflows/ci.yml)).
+3. Run both verification commands from [Getting Started](#getting-started) and make sure they pass. Those two commands, plus the policy evals (`node .agents/scripts/eval-runner.mjs`), run in CI on Ubuntu and Windows ([`ci.yml`](.github/workflows/ci.yml)).
 4. Record notable changes in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License

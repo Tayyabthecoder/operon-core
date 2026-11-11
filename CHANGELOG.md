@@ -17,7 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `context-cost.mjs` and `lib/rule-metadata.mjs`: measure what each rule and skill adds to context and classify when Claude Code loads it. Findings and options are in `docs/maintenance/context-cost-audit.md`.
 - Validator checks that the README version badge matches `framework.config.json` and that plugin directories listed in `.agents/plugins/README.md` exist.
 - `docs/design/` and `docs/maintenance/` guides, plus the framework improvement tracker and the context cost audit.
-- `.github/workflows/ci.yml`: validator and tests on Ubuntu and Windows. Not yet run on GitHub.
+- `.github/workflows/ci.yml`: validator, tests, and policy evals on Ubuntu and Windows.
+- `eval-runner.mjs` and `.agents/evals/policy-scenarios.json`: 35 black-box policy scenarios run through the Claude Code adapter (no model calls); CI runs them.
+- `commandPolicy.allowedPatterns` (token patterns such as `npm run *`) and `ruleReminders` (one-line reminders to read on-demand rules) in `framework.config.json`.
+- `ecc-drift.mjs` (compare ECC-adapted rules with a local upstream copy; the validator checks the version stamps) and `skill-audit.mjs` (structural report on skill bodies).
+- Log summaries now list repeated confirmation prompts (allowlist candidates) and repeated denials.
 
 ### Changed
 - Deletion commands (`rm`, `del`, `Remove-Item`, and similar) are detected by command token, including behind wrappers such as `cmd /c` and `bash -c`, instead of by substring, so `git log --grep=del` is no longer denied. `git rm` stays denied.
@@ -26,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `claudeCode.modelMap` maps `pro` to `opus` and `flash` to `sonnet`.
 - `hooks.json` key `phase6b-safety-lifecycle` renamed to `safety-lifecycle`.
 - README version badge corrected to 2.0.0, and `.agents/plugins/README.md` no longer lists prototype directories that do not exist.
+
+### Fixed
+- Hooks lowercased every canonical path, which made mixed-case directories unreachable on case-sensitive file systems (Linux). Paths are now lowercased only on Windows and macOS.
 
 ---
 
