@@ -36,7 +36,7 @@ The framework is host-neutral. Its hooks and policies are plain Node.js scripts,
 |---|---|
 | **Operational rules** | 15 core rules covering workflow, change safety, security, architecture, testing, and more, plus 111 glob-activated language rules (21 language groups) adapted from ECC. Two core rules are always active through [`AGENTS.md`](AGENTS.md). |
 | **Skills catalog** | 81 reusable skills, from requirements analysis and database design to threat modeling, load testing, and incident response, including 16 language review and 11 language build-fix skills adapted from ECC. |
-| **Workflows** | 9 slash-command workflows (`/plan`, `/plan-prd`, `/feature-dev`, `/code-review`, `/pr`, `/build-fix`, `/test-coverage`, `/refactor-clean`, `/update-docs`) adapted from ECC and gated by the framework's safety rules. |
+| **Workflows** | 15 slash-command workflows gated by the framework's safety rules: 9 adapted from ECC (`/plan`, `/plan-prd`, `/feature-dev`, `/code-review`, `/pr`, `/build-fix`, `/test-coverage`, `/refactor-clean`, `/update-docs`) and 6 written for this framework (`/incident`, `/release`, `/migrate`, `/onboard-repo`, `/triage-bug`, `/retro`). The new ones plan, assess, and report; anything outward-facing or destructive (rollback, tag, publish, applying a migration) waits for your explicit instruction. |
 | **Specification templates** | 11 templates for PRDs, SRS documents, ADRs, database schemas, API contracts, test plans, and deployment runbooks. |
 | **Subagent fleet** | 9 subagents with least-privilege tool access. Only one can modify files or run commands. |
 | **Safety hooks** | Lifecycle hooks that fingerprint the workspace, gate shell commands against an allowlist, block path traversal, and require verification before a session ends. |
@@ -199,7 +199,7 @@ operon-core/
     ├── scratch/               # Temporary agent workspace, created on demand (excluded from fingerprinting)
     ├── scripts/               # Hooks, adapters, tests, validator, and verification runner
     ├── skills/                # 81 reusable engineering skills
-    ├── workflows/             # 9 slash-command workflows (adapted from ECC)
+    ├── workflows/             # 15 slash-command workflows (9 adapted from ECC, 6 original)
     └── templates/             # 11 specification and planning templates
 ```
 

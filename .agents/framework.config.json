@@ -53,7 +53,7 @@
     "subagents": 9,
     "docs": 10,
     "skillBindings": 61,
-    "workflows": 9
+    "workflows": 15
   },
   "subagents": [
     "accessibility-auditor.md",
@@ -223,11 +223,17 @@
     "build-fix.md",
     "code-review.md",
     "feature-dev.md",
+    "incident.md",
+    "migrate.md",
+    "onboard-repo.md",
     "plan-prd.md",
     "plan.md",
     "pr.md",
     "refactor-clean.md",
+    "release.md",
+    "retro.md",
     "test-coverage.md",
+    "triage-bug.md",
     "update-docs.md"
   ]
 }

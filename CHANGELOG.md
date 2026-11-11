@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Six workflows written for this framework: `/incident` (triage and blameless postmortem), `/release` (evidence and gates, then a `release-manager` go or no-go), `/migrate` (reversible expand-and-contract migration plans), `/onboard-repo` (read-only orientation), `/triage-bug` (reproduction and report, no fix), and `/retro` (turns hook logs, evals, drift, and skill audit into proposals). The set is now 15 workflows. None of them tags, publishes, deploys, or applies a migration without an explicit instruction for that step.
 - Three read-only subagents: `docs-auditor` (documentation vs code accuracy), `dependency-auditor` (manifests, lockfiles, licenses, upgrade risk), and `release-manager` (release readiness and go or no-go; never tags, publishes, or deploys). The fleet is now 9 subagents, 8 of them read-only, with 61 skill bindings.
 - Command policy in `framework.config.json`: `commandPolicy.allowedCommands` (exact foreground command lines) and `commandPolicy.allowedBackgroundCommands` (exact commands allowed as background processes). Listed commands still go through the chaining and destructive-command checks. `git diff --staged` is allowed.
 - `.agents/scripts/lib/hook-common.mjs`: one `readStdin` and one workspace-root implementation shared by the hooks and the Claude Code adapter.

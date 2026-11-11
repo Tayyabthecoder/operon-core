@@ -1,0 +1,104 @@
+---
+description: "Prepare a release: collect verification evidence, gather the review gates from qa-reviewer, security-auditor, dependency-auditor and docs-auditor, check version and changelog consistency, and get a GO or NO-GO from release-manager. Tagging, publishing, and deploying are separate steps that need the user's explicit instruction."
+argument-hint: "<target version, e.g. 2.1.0>"
+---
+
+# Release Readiness
+
+> **Framework gate**: This workflow assesses and prepares; it does not release. Creating a tag, pushing, publishing a package, or deploying are outward, hard-to-reverse actions. Do each only when the user explicitly asks for that step, after a `GO` decision (`deployment.md` section 8, `git-workflow.md`).
+
+**Input**: `$ARGUMENTS` — the target version. If missing, ask for it.
+
+The read-only `release-manager` makes the decision. You (the Primary Agent) run every command and pass sanitized output to the subagents.
+
+---
+
+## Phase 1 — PRECONDITIONS
+
+```bash
+git status --short
+git branch --show-current
+git log --oneline -n 20
+```
+
+| Check | Condition | If it fails |
+|---|---|---|
+| Clean working tree | No uncommitted changes | Stop: "Commit or stash first." Never discard changes yourself. |
+| On the release branch | Usually `main` | Ask the user to confirm the branch |
+| Version is higher than the last release | Compare with the changelog and any tags | Stop and ask |
+
+## Phase 2 — EVIDENCE
+
+Run the project's verification synchronously and wait for it to finish:
+
+```bash
+node .agents/scripts/verify-runner.mjs --profile framework-validator
+node .agents/scripts/verify-runner.mjs --profile node-test
+```
+
+Use the project's own commands if it is not this framework. Record exit codes. Evidence from before the latest change does not count. If the project has CI, ask the user for the status of the release commit or read it with `gh run list --limit 5` when `gh` is available.
+
+## Phase 3 — GATES
+
+Request, in parallel where independent, and wait for all:
+
+| Subagent | Ask for |
+|---|---|
+| `qa-reviewer` | Quality gate on the diff since the last release, using the evidence above |
+| `security-auditor` | `PASS` or `BLOCK` for security-relevant changes |
+| `dependency-auditor` | `APPROVE` or `CHANGES REQUESTED` if any manifest or lockfile changed |
+| `docs-auditor` | `ACCURATE` or `DISCREPANCIES FOUND` for README, changelog, and runbooks |
+
+Re-check any finding a subagent reports against the files before relying on it; subagents can be wrong.
+
+## Phase 4 — DECISION
+
+Send `release-manager` a `ReleaseReadinessEnvelope`: target version, evidence, gate decisions, and the change summary since the previous release. Ask for the `ReleaseReadinessReport`.
+
+| Decision | Meaning |
+|---|---|
+| `GO` | All required evidence and gates pass |
+| `GO WITH CONDITIONS` | Passes, but named conditions must be met first |
+| `NO-GO` | Missing or failing evidence; list the blockers |
+
+A `BLOCK` from `security-auditor` or a failing `qa-reviewer` gate forces `NO-GO`. Do not override it.
+
+## Phase 5 — PREPARE (local, reversible)
+
+On `GO` or `GO WITH CONDITIONS`, and with the user's agreement, prepare but do not publish:
+- Update the version in every place the report listed.
+- Move `[Unreleased]` changelog entries under the new version heading with the date.
+- Save the draft release notes to `docs/maintenance/releases/<version>.md`.
+
+Show the diff and let the user review it. Run verification again after these edits.
+
+## Phase 6 — HAND OFF
+
+Print the exact commands for the remaining steps, **without running them**:
+
+```
+git tag -a v<version> -m "Release <version>"
+git push origin main
+git push origin v<version>
+```
+
+Run them only if the user says so, one at a time. Never force-push, and never bypass failing checks.
+
+## Output
+
+```
+Release <version>: <GO | GO WITH CONDITIONS | NO-GO>
+Evidence: <profiles run, exit codes, CI status>
+Gates: qa <result> | security <result> | dependencies <result> | docs <result>
+Blockers / conditions: <list>
+Prepared locally: <files changed>
+Not done (needs your instruction): tag, push, publish, deploy
+```
+
+---
+
+## Edge Cases
+
+- **No CI configured**: Say so; do not imply CI passed.
+- **Stale evidence**: Re-run before deciding.
+- **Rollback**: Ask `release-manager` for the rollback procedure before any deploy; database migrations may not be undone by rolling back code.
