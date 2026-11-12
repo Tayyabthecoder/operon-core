@@ -167,7 +167,9 @@ export function planInit({ sourceRoot, targetDir, stacks = 'auto' }) {
   // `version` is the framework's own release number (the validator compares it with this repo's
   // README badge), so it is recorded in .operon.json instead of the target's config.
   const { version: frameworkVersion, ...configWithoutVersion } = config;
-  const targetConfig = { ...configWithoutVersion, rules, expectedCounts: { ...config.expectedCounts, rules: rules.length } };
+  // `hosts` lists the generated Cursor/Gemini/Codex files kept in sync here; a new install has
+  // none until the owner runs setup-hosts.mjs and opts in.
+  const targetConfig = { ...configWithoutVersion, hosts: [], rules, expectedCounts: { ...config.expectedCounts, rules: rules.length } };
   const writes = [
     { to: path.join(target, '.agents', 'framework.config.json'), content: `${JSON.stringify(targetConfig, null, 2)}\n` },
     { to: path.join(target, '.agents', 'memory', 'decision-log.md'), content: HEADER },

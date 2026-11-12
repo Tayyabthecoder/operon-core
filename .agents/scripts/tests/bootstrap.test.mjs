@@ -87,6 +87,7 @@ test('init installs core and selected language rules, keeps existing files, and 
 
     const config = JSON.parse(fs.readFileSync(path.join(dir, '.agents', 'framework.config.json'), 'utf8'));
     assert.equal(config.version, undefined);
+    assert.deepEqual(config.hosts, [], 'a new install keeps no generated host files until the owner opts in');
     assert.equal(config.expectedCounts.rules, rules.length);
     assert.equal(config.rules.length, rules.length);
 

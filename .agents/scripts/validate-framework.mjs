@@ -264,6 +264,28 @@ console.log(`\n=== 4d. Validating Generated Claude Code Plugin ===`);
   }
 }
 
+// 4e. Verify generated Cursor, Gemini CLI, and Codex CLI files match their sources (hosts listed in config `hosts`)
+console.log(`\n=== 4e. Validating Generated Host Files ===`);
+{
+  const hosts = Array.isArray(frameworkConfig.hosts) ? frameworkConfig.hosts : [];
+  const adapterPath = path.join(rootDir, '.agents', 'scripts', 'lib', 'host-adapters.mjs');
+  if (hosts.length === 0 || !fs.existsSync(adapterPath)) {
+    reportPass('Hosts', 'No host files are configured for this workspace; nothing to compare');
+  } else {
+    const { checkHostFiles } = await import(pathToFileURL(adapterPath).href);
+    const { missing, changed, stale, conflicts } = checkHostFiles(rootDir, hosts);
+    const problems = [
+      ...missing.map((f) => `missing ${f}`), ...changed.map((f) => `changed ${f}`),
+      ...stale.map((f) => `stale ${f}`), ...conflicts.map((f) => `conflict ${f}`),
+    ];
+    if (problems.length === 0) {
+      reportPass('Hosts', `Generated files for ${hosts.join(', ')} match the framework sources`);
+    } else {
+      reportFail('Hosts', `Generated host files are out of date (${problems.length}, first: ${problems[0]}); run node .agents/scripts/setup-hosts.mjs`);
+    }
+  }
+}
+
 // 5. Markdown Link & Portability Validation
 console.log(`\n=== 5. Validating Markdown Links & Portability ===`);
 

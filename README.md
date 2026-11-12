@@ -188,6 +188,18 @@ It links `.claude/skills` and `.claude/commands` to the framework's skills and w
 
 Enabling the hooks applies the framework's command policy to every Claude Code session in the repository, including chained shell commands being denied.
 
+## Using with Cursor, Gemini CLI, and Codex CLI
+
+All three read `.agents/skills` on their own, and Codex and Cursor read `AGENTS.md`, so the skills and the main instructions already work there. `node .agents/scripts/setup-hosts.mjs` generates the rest from the same sources (`--host cursor,gemini,codex` limits it, `--check` exits 1 on drift, and the validator runs the same check for the hosts listed in `hosts` in `framework.config.json`):
+
+| Host | Generated | How the framework's concepts map |
+|---|---|---|
+| Cursor | `.cursor/rules/*.mdc`, `.cursor/agents/*.md` | Session-start rules become `alwaysApply: true`, conditional rules get `globs`, on-demand rules are description-only. Read-only subagents get `readonly: true`. |
+| Gemini CLI | `GEMINI.md`, `.gemini/agents/*.md`, `.gemini/commands/*.toml` | `GEMINI.md` imports the three session-start rules. Read-only subagents get a `tools` allowlist (`read_file`, `list_directory`, `glob`, `grep_search`). The 15 workflows become slash commands with `$ARGUMENTS` turned into `{{args}}`. |
+| Codex CLI | `.codex/agents/*.toml` | Codex subagent files have no tool restriction, so the read-only roles carry an instruction, not an enforced limit. |
+
+**What this does not give you:** the hooks. The command, file, and MCP guardrails, the audit log, and the Stop gate run only through the Claude Code adapter. On these three hosts the generated files carry rules, roles, and workflows only, and `GEMINI.md` says so. Generated files are only written when absent or already generated: a file you wrote yourself at the same path is reported as a conflict and left alone. The formats follow each host's documentation (checked 2026-11-12); none of the output has been loaded by the host itself yet.
+
 ## Repository Structure
 
 ```plaintext

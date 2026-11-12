@@ -20,6 +20,7 @@
     "servers": {},
     "agentGrants": {}
   },
+  "hosts": ["cursor", "gemini", "codex"],
   "memory": {
     "enabled": true,
     "file": ".agents/memory/decision-log.md",
