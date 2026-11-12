@@ -11,7 +11,8 @@ import {
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const cli = path.join(projectRoot, '.agents', 'scripts', 'setup-hosts.mjs');
-const read = (rel) => fs.readFileSync(path.join(projectRoot, rel), 'utf8');
+// A Windows checkout may convert the committed files to CRLF; the assertions below are about content.
+const read = (rel) => fs.readFileSync(path.join(projectRoot, rel), 'utf8').replace(/\r\n/g, '\n');
 
 /** A copy of the sources the generator reads: config, rules, agents, workflows. */
 function miniSource() {
